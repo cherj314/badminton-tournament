@@ -385,6 +385,12 @@
         <div class="header">
             <h1>🏸 Badminton Tournament Manager</h1>
             <p>8 Schools • 5 Events • Knockout Format</p>
+            <div style="margin-top: 15px;">
+                <button onclick="exportTournamentData()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 5px; margin: 0 5px; cursor: pointer;">📥 Export Data</button>
+                <label for="import-file" style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 5px; margin: 0 5px; cursor: pointer; display: inline-block;">📤 Import Data</label>
+                <input type="file" id="import-file" accept=".json" onchange="importTournamentData(this.files[0])" style="display: none;">
+                <button onclick="if(confirm('Clear all tournament data?')) { localStorage.clear(); location.reload(); }" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 5px; margin: 0 5px; cursor: pointer;">🗑️ Clear All</button>
+            </div>
         </div>
 
         <div class="tabs">
@@ -458,6 +464,39 @@
                 bracket: null
             };
         });
+
+        // Load saved data from localStorage
+        function loadSavedData() {
+            const saved = localStorage.getItem('badmintonTournamentData');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    Object.assign(eventData, data);
+                    // Refresh display for active event
+                    events.forEach(event => {
+                        if (eventData[event].bracket) {
+                            document.querySelector(`#${event} .schools-setup`).style.display = 'none';
+                            document.getElementById(`${event}-bracket`).style.display = 'block';
+                            renderBracket(event);
+            
+            // Save data after each change
+            saveData();
+                        }
+                    });
+                } catch (e) {
+                    console.error('Failed to load saved data:', e);
+                }
+            }
+        }
+
+        // Save data to localStorage
+        function saveData() {
+            try {
+                localStorage.setItem('badmintonTournamentData', JSON.stringify(eventData));
+            } catch (e) {
+                console.error('Failed to save data:', e);
+            }
+        }
 
         // Initialize school inputs for each event
         function initializeSchoolInputs() {
@@ -549,6 +588,9 @@
             displayBracket(event);
             document.querySelector(`#${event} .schools-setup`).style.display = 'none';
             document.getElementById(`${event}-bracket`).style.display = 'block';
+            
+            // Save data after generating bracket
+            saveData();
         }
 
         function displayBracket(event) {
@@ -877,6 +919,34 @@
 
         // Initialize on load
         initializeSchoolInputs();
+        loadSavedData();
+
+        // Add data export/import functionality
+        function exportTournamentData() {
+            const dataStr = JSON.stringify(eventData, null, 2);
+            const blob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `tournament-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importTournamentData(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    Object.assign(eventData, data);
+                    saveData();
+                    location.reload(); // Refresh to show imported data
+                } catch (err) {
+                    alert('Failed to import file. Please check the file format.');
+                }
+            };
+            reader.readAsText(file);
+        }
     </script>
 </body>
 </html>
