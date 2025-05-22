@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Badminton Tournament</title>
+    <title>Badminton Tournament Manager</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; margin: 0; padding: 20px; background-color: #f0f2f5; color: #1c1e21; font-size: 14px; }
         header { background-color: #4A90E2; color: white; padding: 15px 20px; text-align: center; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -24,8 +24,8 @@
         .event-container.active { display: block; }
         .event-container h2 { color: #4A90E2; margin-top:0; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px;}
 
-        #team-setup-area { margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border-radius: 6px; }
-        #team-setup-area h3 { margin-top: 0; color: #333; }
+        .team-setup-area { margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border-radius: 6px; }
+        .team-setup-area h3 { margin-top: 0; color: #333; }
         .team-input-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
         .team-input-group { display: flex; align-items: center; background-color: #fff; padding: 8px; border: 1px solid #ddd; border-radius:4px;}
         .team-input-group label { display: inline-block; width: 100px; font-size: 0.9em; color: #555; margin-right: 5px; }
@@ -45,7 +45,7 @@
         .match .match-meta { font-size: 0.75em; color: #666; margin-bottom: 6px; text-align: right; }
         .match button.save-score { padding: 8px 12px; font-size: 0.9em; background-color: #5cb85c; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; display: block; width: 100%; transition: background-color 0.2s;}
         .match button.save-score:hover { background-color: #4cae4c; }
-        .match .winner .team-name { font-weight: bold; color: #007bff; } /* Changed winner color */
+        .match .winner .team-name { font-weight: bold; color: #007bff; } 
         .match .loser .team-name { text-decoration: line-through; color: #777; }
         .bye { font-style: italic; color: #555; text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 4px; margin-top: 5px;}
         .match-complete-indicator { font-weight: bold; color: #28a745; margin-top: 5px; text-align: center; font-size:0.85em; }
@@ -84,15 +84,15 @@
         // --- Initialization and Data Persistence ---
         function initApp() {
             loadData();
-            setupEventTabs(); // Ensure tabs are set up before rendering
-            renderCurrentEvent(); // Render the default active event
+            setupEventTabs(); 
+            renderCurrentEvent(); 
             document.getElementById('reset-tournament').addEventListener('click', resetTournamentData);
             document.getElementById('save-all-teams').addEventListener('click', saveAllTeamNamesFromUI);
         }
 
         function saveData() {
             try {
-                localStorage.setItem('badmintonTournamentData_v2', JSON.stringify(tournamentData)); // Added _v2 for potential versioning
+                localStorage.setItem('badmintonTournamentData_v3.1', JSON.stringify(tournamentData)); 
             } catch (e) {
                 console.error("Error saving data to localStorage:", e);
                 alert("Could not save data. LocalStorage might be full or disabled.");
@@ -103,20 +103,24 @@
             const statusEl = document.getElementById('loading-status');
             if(statusEl) statusEl.style.display = 'block';
             try {
-                const storedData = localStorage.getItem('badmintonTournamentData_v2');
+                const storedData = localStorage.getItem('badmintonTournamentData_v3.1');
                 if (storedData) {
                     tournamentData = JSON.parse(storedData);
-                    Object.keys(EVENT_CODES).forEach(eventId => { // Ensure all defined events exist
+                    Object.keys(EVENT_CODES).forEach(eventId => { 
                         if (!tournamentData[eventId]) {
                             tournamentData[eventId] = createEventObject(eventId);
-                        } else { // Basic migration/check for existing data structures
+                        } else { 
                             if (!tournamentData[eventId].teams || tournamentData[eventId].teams.length !== TOTAL_TEAMS_PER_EVENT) {
                                 tournamentData[eventId].teams = createInitialTeams(eventId);
                             }
-                            if (!tournamentData[eventId].mainDraw || !tournamentData[eventId].mainDraw.rounds) {
+                            // Check for the new final matches, regenerate if structure seems old
+                            const mdRounds = tournamentData[eventId].mainDraw && tournamentData[eventId].mainDraw.rounds;
+                            const cdRounds = tournamentData[eventId].consolationDraw && tournamentData[eventId].consolationDraw.rounds;
+
+                            if (!mdRounds || mdRounds.length < 6) { // 5 rounds + 1 overall final
                                 tournamentData[eventId].mainDraw = generateMainDrawStructure(eventId);
                             }
-                            if (!tournamentData[eventId].consolationDraw || !tournamentData[eventId].consolationDraw.rounds) {
+                            if (!cdRounds || cdRounds.length < 8) { // 7 rounds + 1 third place
                                 tournamentData[eventId].consolationDraw = generateConsolationDrawStructure(eventId);
                             }
                         }
@@ -126,7 +130,7 @@
                 }
             } catch (e) {
                 console.error("Error loading data from localStorage:", e);
-                initializeNewTournament(); // Fallback to new tournament on error
+                initializeNewTournament(); 
             }
             if(statusEl) statusEl.style.display = 'none';
         }
@@ -158,7 +162,7 @@
                     teams.push({
                         id: teamId,
                         name: `School ${i+1} - Team ${j+1}`,
-                        originalPlayerSlot: teams.length, // 0 to 31
+                        originalPlayerSlot: teams.length, 
                         mainDrawLosses: 0,
                         consolationLosses: 0
                     });
@@ -169,7 +173,7 @@
 
         function resetTournamentData() {
             if (confirm("Are you sure you want to reset all tournament data? This cannot be undone.")) {
-                localStorage.removeItem('badmintonTournamentData_v2');
+                localStorage.removeItem('badmintonTournamentData_v3.1');
                 initializeNewTournament();
                 renderCurrentEvent(); 
                 alert("Tournament data has been reset.");
@@ -181,19 +185,21 @@
             return {
                 id, round, matchInRound, customLabel,
                 team1Id: null, team2Id: null,
-                team1Source, team2Source, // {type: 'seed'/'winner'/'loser', matchId: 'M1.1', slot: 0/1}
+                team1Source, team2Source, 
                 score1: [], score2: [],
                 winnerId: null, loserId: null,
                 isBye: false, isComplete: false,
-                isSF, isFinal, // For Bo3 games
-                loserFeedsToConsolationMatchId: null, // For MD matches
-                loserFeedsToSlotNumber: null, // 1 or 2 for team1/team2 in CD match
+                isSF, isFinal, 
+                isOverallChampionship: false, // New flag for the ultimate final
+                isThirdPlacePlayoff: false, // New flag
+                loserFeedsToConsolationMatchId: null, 
+                loserFeedsToSlotNumber: null, 
             };
         }
 
         function generateMainDrawStructure(eventId) {
             const rounds = [];
-            const numTeams = TOTAL_TEAMS_PER_EVENT; // 32
+            const numTeams = TOTAL_TEAMS_PER_EVENT; 
             let teamsInRound = numTeams;
             let roundNum = 1;
 
@@ -201,60 +207,68 @@
             let roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1, 
-                    { type: 'seed', slot: i * 2 }, { type: 'seed', slot: i * 2 + 1 });
-                // Losers of R1 feed CD-R1
-                match.loserFeedsToConsolationMatchId = `CD1.${i + 1}`;
-                match.loserFeedsToSlotNumber = (i % 2 === 0) ? 1 : 2; // Alternate slots for visual balance
+                    { type: 'seed', slot: i * 2 }, { type: 'seed', slot: i * 2 + 1 }, false, false, `MD R1.${i+1}`);
+                match.loserFeedsToConsolationMatchId = `CD1.${Math.floor(i/2) + 1}`;
+                match.loserFeedsToSlotNumber = (i % 2 === 0) ? 1 : 2; 
                 roundMatches.push(match);
             }
             rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; // 16 teams left
+            teamsInRound /= 2; roundNum++; 
 
             // R2: 8 matches
             roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
-                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` });
-                // Losers of R2 feed CD-R2
+                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` }, false, false, `MD R2.${i+1}`);
                 match.loserFeedsToConsolationMatchId = `CD2.${i + 1}`;
-                match.loserFeedsToSlotNumber = 2; // Let CD R1 winners take slot 1
+                match.loserFeedsToSlotNumber = 2; 
                 roundMatches.push(match);
             }
             rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; // 8 teams left (QF)
+            teamsInRound /= 2; roundNum++; 
 
             // R3 (QF): 4 matches
             roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
-                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` });
-                // Losers of QF feed CD-R4 (after CD-R3 playdown)
-                match.loserFeedsToConsolationMatchId = `CD4.${i + 1}`;
-                match.loserFeedsToSlotNumber = 2; // Let CD R3 winners take slot 1
+                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` }, false, false, `MD QF.${i+1}`);
+                match.loserFeedsToConsolationMatchId = `CD4.${i + 1}`; 
+                match.loserFeedsToSlotNumber = 2; 
                 roundMatches.push(match);
             }
             rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; // 4 teams left (SF)
+            teamsInRound /= 2; roundNum++; 
 
             // R4 (SF): 2 matches (Best of 3)
             roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
                     { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` },
-                    true, false); // isSF=true
-                // Losers of SF feed CD-R6 (after CD-R5 playdown)
-                match.loserFeedsToConsolationMatchId = `CD6.${i + 1}`;
-                match.loserFeedsToSlotNumber = 2; // Let CD R5 winners take slot 1
+                    true, false, `MD SF.${i+1}`); 
+                match.loserFeedsToConsolationMatchId = `CD6.${i + 1}`; 
+                match.loserFeedsToSlotNumber = 2; 
                 roundMatches.push(match);
             }
             rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; // 2 teams left (Final)
+            teamsInRound /= 2; roundNum++; 
 
             // R5 (Final): 1 match (Best of 3)
             roundMatches = [];
-            roundMatches.push(createMatchObject(`M${roundNum}.1`, roundNum, 1,
+            const mdFinal = createMatchObject(`M${roundNum}.1`, roundNum, 1,
                 { type: 'winner', matchId: `M${roundNum-1}.1` }, { type: 'winner', matchId: `M${roundNum-1}.2` },
-                false, true)); // isFinal=true
+                false, true, `MD Final`); 
+            roundMatches.push(mdFinal);
+            rounds.push(roundMatches);
+            roundNum++;
+
+            // R6 (Overall Championship): 1 match (Best of 3)
+            roundMatches = [];
+            const overallChampMatch = createMatchObject(`M${roundNum}.1`, roundNum, 1,
+                { type: 'winner', matchId: 'M5.1' }, // Winner of MD Final
+                { type: 'winner', matchId: 'CD7.1' }, // Winner of CD Final
+                false, true, `Overall Championship`); // isFinal for Bo3 logic
+            overallChampMatch.isOverallChampionship = true;
+            roundMatches.push(overallChampMatch);
             rounds.push(roundMatches);
             
             return { rounds };
@@ -262,16 +276,15 @@
 
         function generateConsolationDrawStructure(eventId) {
             const rounds = [];
-            let roundNum = 1;
+            let roundNum = 1; 
 
-            // CD-R1: 8 matches (16 L_M1)
+            // CD-R1: 8 matches (for 16 L_M1)
             let roundMatches = [];
             for (let i = 0; i < 8; i++) {
-                // Source for these will be set by MD loserFeedsTo...
                 roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1, 
-                    { type: 'loser', matchId: `M1.${i*2+1}` }, // Placeholder, will be set by MD
-                    { type: 'loser', matchId: `M1.${i*2+2}` }, // Placeholder
-                     false, false, "CD R1"));
+                    { type: 'loser', matchId: `M1.${i*2+1}` }, 
+                    { type: 'loser', matchId: `M1.${i*2+2}` }, 
+                    false, false, `CD R1.${i+1}`));
             }
             rounds.push(roundMatches); roundNum++;
 
@@ -280,59 +293,68 @@
             for (let i = 0; i < 8; i++) {
                 roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1,
                     { type: 'winner', matchId: `CD${roundNum-1}.${i+1}` },
-                    { type: 'loser', matchId: `M2.${i+1}` }, // Placeholder
-                    false, false, "CD R2"));
+                    { type: 'loser', matchId: `M2.${i+1}` }, 
+                    false, false, `CD R2.${i+1}`));
             }
             rounds.push(roundMatches); roundNum++;
 
-            // CD-R3A (Play-down for 8 W_C2): 4 matches
+            // CD-R3 (Play-down for 8 W_C2): 4 matches
             roundMatches = [];
             for (let i = 0; i < 4; i++) {
-                roundMatches.push(createMatchObject(`CD${roundNum}A.${i+1}`, roundNum, i+1,
+                roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1, 
                     { type: 'winner', matchId: `CD${roundNum-1}.${i*2+1}` },
                     { type: 'winner', matchId: `CD${roundNum-1}.${i*2+2}` },
-                    false, false, "CD R3 Playdown"));
+                    false, false, `CD R3.${i+1} (Playdown)`));
             }
-            rounds.push(roundMatches); // Still roundNum 3 conceptually for W_C2 playdown
+            rounds.push(roundMatches); roundNum++;
 
-            // CD-R4 (4 W_C3A vs 4 L_M3/QF): 4 matches
-            let nextConsolationRoundNum = roundNum + 1;
+            // CD-R4 (4 W_C3 vs 4 L_M3/QF): 4 matches
             roundMatches = [];
             for (let i = 0; i < 4; i++) {
-                roundMatches.push(createMatchObject(`CD${nextConsolationRoundNum}.${i+1}`, nextConsolationRoundNum, i+1,
-                    { type: 'winner', matchId: `CD${roundNum}A.${i+1}` },
-                    { type: 'loser', matchId: `M3.${i+1}` }, // Placeholder for QF losers
-                    false, false, "CD R4 (vs QFL)"));
+                roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1,
+                    { type: 'winner', matchId: `CD${roundNum-1}.${i+1}` },
+                    { type: 'loser', matchId: `M3.${i+1}` }, 
+                    false, false, `CD R4.${i+1} (vs QFL)`));
             }
-            rounds.push(roundMatches); roundNum = nextConsolationRoundNum + 1;
+            rounds.push(roundMatches); roundNum++;
 
-            // CD-R5A (Play-down for 4 W_C4): 2 matches
+            // CD-R5 (Play-down for 4 W_C4): 2 matches
             roundMatches = [];
             for (let i = 0; i < 2; i++) {
-                roundMatches.push(createMatchObject(`CD${roundNum}A.${i+1}`, roundNum, i+1,
+                roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1, 
                     { type: 'winner', matchId: `CD${roundNum-1}.${i*2+1}` },
                     { type: 'winner', matchId: `CD${roundNum-1}.${i*2+2}` },
-                    false, false, "CD R5 Playdown"));
+                    false, false, `CD R5.${i+1} (Playdown)`));
             }
-            rounds.push(roundMatches);
+            rounds.push(roundMatches); roundNum++;
 
-            // CD-R6 (2 W_C5A vs 2 L_M4/SF): 2 matches
-            nextConsolationRoundNum = roundNum + 1;
+            // CD-R6 (2 W_C5 vs 2 L_M4/SF): 2 matches (CD Semis)
             roundMatches = [];
             for (let i = 0; i < 2; i++) {
-                roundMatches.push(createMatchObject(`CD${nextConsolationRoundNum}.${i+1}`, nextConsolationRoundNum, i+1,
-                    { type: 'winner', matchId: `CD${roundNum}A.${i+1}` },
-                    { type: 'loser', matchId: `M4.${i+1}` }, // Placeholder for SF losers
-                    false, false, "CD Semi-Finals"));
+                roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1,
+                    { type: 'winner', matchId: `CD${roundNum-1}.${i+1}` },
+                    { type: 'loser', matchId: `M4.${i+1}` }, 
+                    false, false, `CD SF.${i+1}`));
             }
-            rounds.push(roundMatches); roundNum = nextConsolationRoundNum + 1;
+            rounds.push(roundMatches); roundNum++;
 
             // CD-R7 (Consolation Final): 1 match
             roundMatches = [];
-            roundMatches.push(createMatchObject(`CD${roundNum}.1`, roundNum, 1,
+            const cdFinal = createMatchObject(`CD${roundNum}.1`, roundNum, 1,
                 { type: 'winner', matchId: `CD${roundNum-1}.1` },
                 { type: 'winner', matchId: `CD${roundNum-1}.2` },
-                false, true, "CD Final")); // isFinal=true for label, not Bo3 unless specified
+                false, true, `CD Final`); // isFinal for label, single game by default for CD
+            roundMatches.push(cdFinal);
+            rounds.push(roundMatches); roundNum++;
+
+            // CD-R8 (Third Place Playoff): 1 match (single game)
+            roundMatches = [];
+            const thirdPlaceMatch = createMatchObject(`CD${roundNum}.1`, roundNum, 1,
+                { type: 'loser', matchId: 'M5.1' }, // Loser of MD Final
+                { type: 'loser', matchId: 'CD7.1' }, // Loser of CD Final
+                false, false, `3rd Place Playoff`); 
+            thirdPlaceMatch.isThirdPlacePlayoff = true;
+            roundMatches.push(thirdPlaceMatch);
             rounds.push(roundMatches);
 
             return { rounds };
@@ -396,7 +418,7 @@
             if (!eventData) return;
             
             renderTeamSetupUI(currentEventId);
-            populateAllDrawsForEvent(currentEventId); // Populate first
+            populateAllDrawsForEvent(currentEventId); 
             renderDraw(eventData.mainDraw, `main-draw-${currentEventId}`, currentEventId, 'MD');
             renderDraw(eventData.consolationDraw, `consolation-draw-${currentEventId}`, currentEventId, 'CD');
         }
@@ -411,7 +433,7 @@
                 group.classList.add('team-input-group');
                 const label = document.createElement('label');
                 label.setAttribute('for', `team-name-${eventId}-${index}`);
-                label.textContent = `Entry ${index + 1}:`; // Generic "Entry"
+                label.textContent = `Entry ${index + 1}:`; 
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.id = `team-name-${eventId}-${index}`;
@@ -464,23 +486,25 @@
                 roundMatches.forEach(match => {
                     const matchDiv = document.createElement('div');
                     matchDiv.classList.add('match');
-                    matchDiv.id = `match-${eventId}-${match.id}`; // Ensure unique DOM ID
+                    matchDiv.id = `match-${eventId}-${match.id}`; 
                     
                     const team1Name = getTeamNameById(currentEventId, match.team1Id) || (match.team1Id === 'BYE' ? 'BYE' : 'TBD');
                     const team2Name = getTeamNameById(currentEventId, match.team2Id) || (match.team2Id === 'BYE' ? 'BYE' : 'TBD');
                     
                     let scoreInputs1 = '', scoreInputs2 = '';
-                    const numGamesToPlay = (match.isSF || match.isFinal) ? 3 : 1; // Main Draw SF/Final are Bo3
+                    
+                    const isBo3 = (drawTypePrefix === 'MD' && (match.isSF || match.isFinal || match.isOverallChampionship)) || 
+                                  (drawTypePrefix === 'CD' && match.isFinal); // CD Final is Bo3, Third place is single
+                    const numGamesToPlay = isBo3 ? 3 : 1;
+
 
                     for (let g = 0; g < numGamesToPlay; g++) {
-                        scoreInputs1 += `<input type="number" class="score-input team1-game${g+1}" min="0" max="30" ${match.isComplete ? 'disabled' : ''} value="${match.score1[g] !== undefined ? match.score1[g] : ''}" title="Game ${g+1} Score for ${team1Name}"> `;
-                        scoreInputs2 += `<input type="number" class="score-input team2-game${g+1}" min="0" max="30" ${match.isComplete ? 'disabled' : ''} value="${match.score2[g] !== undefined ? match.score2[g] : ''}" title="Game ${g+1} Score for ${team2Name}"> `;
+                        scoreInputs1 += `<input type="number" class="score-input team1-game${g+1}" min="0" max="30" ${match.isComplete ? 'disabled' : ''} value="${match.score1[g] !== undefined && match.score1[g] !== null ? match.score1[g] : ''}" title="Game ${g+1} Score for ${team1Name}"> `;
+                        scoreInputs2 += `<input type="number" class="score-input team2-game${g+1}" min="0" max="30" ${match.isComplete ? 'disabled' : ''} value="${match.score2[g] !== undefined && match.score2[g] !== null ? match.score2[g] : ''}" title="Game ${g+1} Score for ${team2Name}"> `;
                     }
                     
                     let matchLabel = match.customLabel || `${match.id}`;
-                    if (match.isSF) matchLabel += " (MD SF - Bo3)";
-                    if (match.isFinal) matchLabel += " (MD Final - Bo3)";
-                    if (match.id.startsWith("CD") && match.isFinal) matchLabel += " (CD Final)";
+                    if (isBo3 && !match.customLabel.includes("Best of 3")) matchLabel += " (Best of 3)";
 
 
                     matchDiv.innerHTML = `
@@ -505,17 +529,19 @@
         }
 
         function getTeamNameById(eventId, teamId) {
-            if (!teamId) return null;
+            if (!teamId) return 'TBD'; 
             if (teamId === 'BYE') return 'BYE';
             const event = tournamentData[eventId];
             if (!event || !event.teams) return teamId; 
             const team = event.teams.find(t => t.id === teamId);
-            return team ? team.name : teamId; // Fallback to ID
+            return team ? team.name : teamId; 
         }
         
         function findMatchById(eventId, drawTypePrefix, matchId) {
             const event = tournamentData[eventId];
+            if (!event) return null;
             const draw = drawTypePrefix === 'MD' ? event.mainDraw : event.consolationDraw;
+            if (!draw || !draw.rounds) return null;
             for (const round of draw.rounds) {
                 const foundMatch = round.find(m => m.id === matchId);
                 if (foundMatch) return foundMatch;
@@ -523,100 +549,137 @@
             return null;
         }
 
+        // --- Scoring Rules ---
+        function checkGameWinner(s1, s2) {
+            if (s1 === null || s2 === null || s1 === undefined || s2 === undefined || isNaN(s1) || isNaN(s2)) return null; 
+
+            const p1 = parseInt(s1);
+            const p2 = parseInt(s2);
+
+            if (p1 === 30 && p1 > p2) return 1; 
+            if (p2 === 30 && p2 > p1) return 2; 
+            if (p1 < 30 && p2 < 30) { 
+                if (p1 >= 21 && p1 >= p2 + 2) return 1; 
+                if (p2 >= 21 && p2 >= p1 + 2) return 2; 
+            }
+            return null; 
+        }
+
         // --- Score Handling and Advancement ---
         function handleScoreSave(eventId, drawTypePrefix, matchId) {
             const match = findMatchById(eventId, drawTypePrefix, matchId);
             if (!match) { console.error("Match not found:", matchId); return; }
 
-            const numGamesToPlay = (match.isSF || match.isFinal) ? 3 : 1;
-            const scores1 = [], scores2 = [];
+            const isBo3 = (drawTypePrefix === 'MD' && (match.isSF || match.isFinal || match.isOverallChampionship)) || 
+                          (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff) ; // CD Final is Bo3, 3rd place is not
+            const numGamesToPlay = isBo3 ? 3 : 1;
             
+            const collectedScores1 = [], collectedScores2 = [];
             const matchDiv = document.getElementById(`match-${eventId}-${match.id}`);
             if (!matchDiv) { console.error("Match div not found for scores:", `match-${eventId}-${match.id}`); return; }
-
 
             for (let g = 0; g < numGamesToPlay; g++) {
                 const s1El = matchDiv.querySelector(`.team1-game${g+1}`);
                 const s2El = matchDiv.querySelector(`.team2-game${g+1}`);
-                if (!s1El || !s2El) { alert(`Score input elements for Game ${g+1} not found.`); return; }
+                if (!s1El || !s2El) { collectedScores1.push(null); collectedScores2.push(null); continue;}
 
-                const s1 = parseInt(s1El.value);
-                const s2 = parseInt(s2El.value);
-
-                // Collect all entered scores, even if not a full game.
-                if (!isNaN(s1)) scores1.push(s1); else scores1.push(null);
-                if (!isNaN(s2)) scores2.push(s2); else scores2.push(null);
+                const s1Val = s1El.value;
+                const s2Val = s2El.value;
+                
+                collectedScores1.push(s1Val === '' ? null : parseInt(s1Val));
+                collectedScores2.push(s2Val === '' ? null : parseInt(s2Val));
             }
-            match.score1 = scores1.filter(s => s !== null); // Store only entered scores
-            match.score2 = scores2.filter(s => s !== null);
+            match.score1 = collectedScores1; 
+            match.score2 = collectedScores2;
 
-            let team1GamesWon = 0;
-            let team2GamesWon = 0;
-            let gameWinnerDetermined = true;
+            let team1MatchGamesWon = 0;
+            let team2MatchGamesWon = 0;
+            let allRequiredGamesValidlyScored = true;
 
             for (let g = 0; g < numGamesToPlay; g++) {
-                const s1 = match.score1[g];
-                const s2 = match.score2[g];
+                // If we already have a match winner in Bo3, don't need to validate further game scores
+                if (isBo3 && (team1MatchGamesWon >= 2 || team2MatchGamesWon >= 2)) break;
 
-                if (s1 === undefined || s2 === undefined || s1 === null || s2 === null) { // Game not fully scored
-                    if (g < team1GamesWon + team2GamesWon) continue; // Already won/lost this game as part of match outcome
-                    gameWinnerDetermined = false; 
-                    break;
-                }
-
-                if ((s1 >= 21 || s2 >= 21) && 
-                    ( (s1 >= s2 + 2 && s1 < 30) || (s2 >= s1 + 2 && s2 < 30) || (s1 === 30 && s1 > s2) || (s2 === 30 && s2 > s1) || (s1 === 21 && s2 < 20 && numGamesToPlay ===1) || (s2 === 21 && s1 < 20 && numGamesToPlay ===1))) {
-                    if (s1 > s2) team1GamesWon++;
-                    else team2GamesWon++;
-                } else if (s1 === 20 && s2 === 20 && numGamesToPlay > 1 ) { // 20-all rule
-                     gameWinnerDetermined = false; break; // Needs more points
-                } else if ( (s1 < 21 && s2 < 21) && numGamesToPlay === 1 ) {
-                     gameWinnerDetermined = false; break; // Single game not finished
-                } else if (Math.abs(s1-s2) < 2 && (s1 >=20 || s2 >=20) && s1 < 29 && s2 < 29) {
-                     gameWinnerDetermined = false; break; // Needs to win by 2
-                } else if (s1 < 21 && s2 < 21 && (team1GamesWon <2 && team2GamesWon <2 && numGamesToPlay ===3)) {
-                    // In Bo3, if one game is like 15-10, it's not complete.
-                    gameWinnerDetermined = false; break;
+                const gameWinner = checkGameWinner(match.score1[g], match.score2[g]);
+                if (gameWinner === 1) {
+                    team1MatchGamesWon++;
+                } else if (gameWinner === 2) {
+                    team2MatchGamesWon++;
+                } else {
+                    // If score is entered for this game but it's not a valid win, then scoring is incomplete/invalid for this game
+                    if (match.score1[g] !== null || match.score2[g] !== null) { 
+                       allRequiredGamesValidlyScored = false;
+                    }
                 }
             }
-
-            if (!gameWinnerDetermined && !( (numGamesToPlay === 3 && (team1GamesWon >= 2 || team2GamesWon >=2)) || (numGamesToPlay === 1 && (team1GamesWon >=1 || team2GamesWon >=1)) )) {
-                alert(`Match scores for ${match.id} are incomplete or invalid under badminton rules (win by 2, cap 30 for games to 21). Please check scores for all games.`);
-                return;
-            }
-
-            if (numGamesToPlay === 1) {
-                if (team1GamesWon === 1) match.winnerId = match.team1Id;
-                else if (team2GamesWon === 1) match.winnerId = match.team2Id;
-                else { alert("Single game match winner could not be determined."); return; }
+            
+            // Determine match winner
+            if (!isBo3) { // Single game
+                if (team1MatchGamesWon === 1) match.winnerId = match.team1Id;
+                else if (team2MatchGamesWon === 1) match.winnerId = match.team2Id;
+                else { allRequiredGamesValidlyScored = false; } // Winner not determined
             } else { // Best of 3
-                if (team1GamesWon >= 2) match.winnerId = match.team1Id;
-                else if (team2GamesWon >= 2) match.winnerId = match.team2Id;
-                else { alert("Best of 3 match winner could not be determined. Two games must be won."); return; }
+                if (team1MatchGamesWon >= 2) match.winnerId = match.team1Id;
+                else if (team2MatchGamesWon >= 2) match.winnerId = match.team2Id;
+                else { allRequiredGamesValidlyScored = false; } // Winner not determined
+            }
+            
+            if (!allRequiredGamesValidlyScored) {
+                 alert(`Match scores for ${match.id} are incomplete or invalid. For single games, one player must win. For Best of 3, two games must be won. Each game requires a clear winner (21 points, win by 2, cap 30). Please check scores.`);
+                 match.winnerId = null; // Ensure winner is not set if scores are invalid
+                 return;
             }
             
             match.loserId = (match.winnerId === match.team1Id) ? match.team2Id : match.team1Id;
             match.isComplete = true;
 
-            // Update team loss counts
-            const loserTeamObj = tournamentData[eventId].teams.find(t => t.id === match.loserId);
-            if (loserTeamObj) {
-                if (drawTypePrefix === 'MD') loserTeamObj.mainDrawLosses++;
-                else loserTeamObj.consolationLosses++;
+            // Only update mainDrawLosses/consolationLosses for bracket progression, not for final placement matches
+            if (!match.isOverallChampionship && !match.isThirdPlacePlayoff) {
+                const loserTeamObj = tournamentData[eventId].teams.find(t => t.id === match.loserId);
+                if (loserTeamObj) { 
+                    if (drawTypePrefix === 'MD') {
+                        loserTeamObj.mainDrawLosses++;
+                    } else { 
+                        loserTeamObj.consolationLosses++;
+                    }
+                }
             }
             
             saveData();
-            renderCurrentEvent(); // Re-render to show updates & propagate
+            renderCurrentEvent(); 
         }
         
         function populateAllDrawsForEvent(eventId) {
             const event = tournamentData[eventId];
             if (!event) return;
             
-            // Populate Main Draw first, as its outcomes feed Consolation
-            populateSpecificDraw(eventId, event.mainDraw, 'MD');
-            // Then populate Consolation Draw
-            populateSpecificDraw(eventId, event.consolationDraw, 'CD');
+            let maxIterations = 7; // Increased slightly due to more cross-draw dependencies
+            let iteration = 0;
+            let changedInIteration;
+
+            do {
+                changedInIteration = false;
+                const originalTeamAssignments = JSON.stringify({
+                    md: event.mainDraw.rounds.map(r => r.map(m => ({id: m.id, t1: m.team1Id, t2: m.team2Id, c: m.isComplete, w: m.winnerId, l:m.loserId}))),
+                    cd: event.consolationDraw.rounds.map(r => r.map(m => ({id: m.id, t1: m.team1Id, t2: m.team2Id, c: m.isComplete, w: m.winnerId, l:m.loserId})))
+                });
+
+                populateSpecificDraw(eventId, event.mainDraw, 'MD');
+                populateSpecificDraw(eventId, event.consolationDraw, 'CD');
+
+                const newTeamAssignments = JSON.stringify({
+                    md: event.mainDraw.rounds.map(r => r.map(m => ({id: m.id, t1: m.team1Id, t2: m.team2Id, c: m.isComplete, w: m.winnerId, l:m.loserId}))),
+                    cd: event.consolationDraw.rounds.map(r => r.map(m => ({id: m.id, t1: m.team1Id, t2: m.team2Id, c: m.isComplete, w: m.winnerId, l:m.loserId})))
+                });
+                
+                if (originalTeamAssignments !== newTeamAssignments) {
+                    changedInIteration = true;
+                }
+                iteration++;
+            } while (changedInIteration && iteration < maxIterations);
+             if (iteration === maxIterations && changedInIteration) {
+                console.warn("Max population iterations reached, but changes were still happening. Draw might not be fully stable.");
+            }
         }
 
 
@@ -626,55 +689,65 @@
 
             drawData.rounds.forEach(round => {
                 round.forEach(match => {
-                    if (match.isComplete) return; // Don't re-process completed matches
-
+                    if (match.isComplete && !match.isBye) return; 
+                                                           
                     // Populate team1Id
-                    if (!match.team1Id && match.team1Source) {
-                        match.team1Id = getPlayerIdFromSource(eventId, match.team1Source);
+                    if (!match.team1Id || match.team1Id === 'TBD') { 
+                        const p1Id = getPlayerIdFromSource(eventId, match.team1Source); // Removed extra params
+                        if (p1Id) match.team1Id = p1Id;
                     }
                     // Populate team2Id
-                    if (!match.team2Id && match.team2Source) {
-                        match.team2Id = getPlayerIdFromSource(eventId, match.team2Source);
+                    if (!match.team2Id || match.team2Id === 'TBD') {
+                        const p2Id = getPlayerIdFromSource(eventId, match.team2Source); // Removed extra params
+                        if (p2Id) match.team2Id = p2Id;
                     }
 
                     // Auto-complete BYEs
-                    if (!match.isComplete && (match.team1Id === 'BYE' || match.team2Id === 'BYE')) {
-                        if (match.team1Id === 'BYE' && match.team2Id && match.team2Id !== 'BYE') {
-                            match.winnerId = match.team2Id;
-                        } else if (match.team2Id === 'BYE' && match.team1Id && match.team1Id !== 'BYE') {
-                            match.winnerId = match.team1Id;
+                    if (!match.isComplete) { 
+                        let newByeWinner = null;
+                        if (match.team1Id === 'BYE' && match.team2Id && match.team2Id !== 'BYE' && match.team2Id !== 'TBD') {
+                            newByeWinner = match.team2Id;
+                        } else if (match.team2Id === 'BYE' && match.team1Id && match.team1Id !== 'BYE' && match.team1Id !== 'TBD') {
+                            newByeWinner = match.team1Id;
                         } else if (match.team1Id === 'BYE' && match.team2Id === 'BYE') {
-                             // Should not happen with proper seeding if total teams is even.
-                             // Or could mean no player available for either slot. For now, treat as no match.
-                             match.winnerId = 'BYE'; // Or null, effectively a double walkover
+                            newByeWinner = 'BYE'; 
                         }
-                        if (match.winnerId) {
+                        
+                        if (newByeWinner) {
+                             match.winnerId = newByeWinner;
+                             match.loserId = (newByeWinner === match.team1Id) ? match.team2Id : match.team1Id; 
                              match.isComplete = true;
                              match.isBye = true;
-                             match.score1 = [0]; match.score2 = [0]; // Nominal score for bye
-                             // Loser of a bye match (the BYE itself) doesn't feed consolation.
+                             match.score1 = []; match.score2 = []; 
                         }
                     }
 
-                    // Handle MD loser feeding to CD
-                    if (drawTypePrefix === 'MD' && match.isComplete && match.loserId && match.loserId !== 'BYE') {
-                        const loserTeam = event.teams.find(t => t.id === match.loserId);
-                        // Only feed if it's the first loss in MD
-                        if (loserTeam && loserTeam.mainDrawLosses === 1) { 
-                            const cdMatchToFeed = findMatchById(eventId, 'CD', match.loserFeedsToConsolationMatchId);
-                            if (cdMatchToFeed && !cdMatchToFeed.isComplete) {
-                                if (match.loserFeedsToSlotNumber === 1 && !cdMatchToFeed.team1Id) {
-                                    cdMatchToFeed.team1Id = match.loserId;
-                                } else if (match.loserFeedsToSlotNumber === 2 && !cdMatchToFeed.team2Id) {
-                                    cdMatchToFeed.team2Id = match.loserId;
+                    if (drawTypePrefix === 'MD' && match.isComplete && match.loserFeedsToConsolationMatchId) {
+                        const loserIdToFeed = match.loserId; 
+                        const cdMatchToFeed = findMatchById(eventId, 'CD', match.loserFeedsToConsolationMatchId);
+
+                        if (cdMatchToFeed && !cdMatchToFeed.isComplete) { 
+                            let slotFilled = false;
+                            if (match.loserFeedsToSlotNumber === 1 && (!cdMatchToFeed.team1Id || cdMatchToFeed.team1Id === 'TBD')) {
+                                cdMatchToFeed.team1Id = loserIdToFeed;
+                                slotFilled = true;
+                            } else if (match.loserFeedsToSlotNumber === 2 && (!cdMatchToFeed.team2Id || cdMatchToFeed.team2Id === 'TBD')) {
+                                cdMatchToFeed.team2Id = loserIdToFeed;
+                                slotFilled = true;
+                            }
+
+                            if (slotFilled && !cdMatchToFeed.isComplete) {
+                                let cdByeWinner = null;
+                                if (cdMatchToFeed.team1Id === 'BYE' && cdMatchToFeed.team2Id && cdMatchToFeed.team2Id !== 'BYE' && cdMatchToFeed.team2Id !== 'TBD') {
+                                    cdByeWinner = cdMatchToFeed.team2Id;
+                                } else if (cdMatchToFeed.team2Id === 'BYE' && cdMatchToFeed.team1Id && cdMatchToFeed.team1Id !== 'BYE' && cdMatchToFeed.team1Id !== 'TBD') {
+                                    cdByeWinner = cdMatchToFeed.team1Id;
                                 }
-                                // Check if the CD match now has both players and one is a BYE (from upstream)
-                                if(cdMatchToFeed.team1Id && cdMatchToFeed.team2Id === 'BYE') {
-                                    cdMatchToFeed.winnerId = cdMatchToFeed.team1Id;
+                                if (cdByeWinner) {
+                                    cdMatchToFeed.winnerId = cdByeWinner;
+                                    cdMatchToFeed.loserId = (cdByeWinner === cdMatchToFeed.team1Id) ? cdMatchToFeed.team2Id : cdMatchToFeed.team1Id;
                                     cdMatchToFeed.isComplete = true; cdMatchToFeed.isBye = true;
-                                } else if (cdMatchToFeed.team2Id && cdMatchToFeed.team1Id === 'BYE') {
-                                    cdMatchToFeed.winnerId = cdMatchToFeed.team2Id;
-                                    cdMatchToFeed.isComplete = true; cdMatchToFeed.isBye = true;
+                                    cdMatchToFeed.score1 = []; cdMatchToFeed.score2 = [];
                                 }
                             }
                         }
@@ -683,28 +756,34 @@
             });
         }
 
-        function getPlayerIdFromSource(eventId, source) {
+        function getPlayerIdFromSource(eventId, source) { // Removed unused params
             if (!source) return null;
             const event = tournamentData[eventId];
 
             if (source.type === 'seed') {
-                return event.teams[source.slot] ? event.teams[source.slot].id : 'BYE'; // Assign BYE if team slot is out of bounds
+                return event.teams[source.slot] ? event.teams[source.slot].id : 'BYE';
             } else if (source.type === 'winner') {
                 const sourceDrawType = source.matchId.startsWith('M') ? 'MD' : 'CD';
                 const sourceMatch = findMatchById(eventId, sourceDrawType, source.matchId);
-                return sourceMatch && sourceMatch.isComplete ? sourceMatch.winnerId : null;
-            } else if (source.type === 'loser') { // This is mainly for CD structure definition, actual feeding handled by MD match completion
+                if (sourceMatch && sourceMatch.isComplete) {
+                    return sourceMatch.winnerId; 
+                }
+                return null; 
+            } else if (source.type === 'loser') {
                 const sourceDrawType = source.matchId.startsWith('M') ? 'MD' : 'CD';
                 const sourceMatch = findMatchById(eventId, sourceDrawType, source.matchId);
-                // Check if this player has already lost in CD, if so, they are out.
-                if (sourceMatch && sourceMatch.isComplete && sourceMatch.loserId) {
-                    const loserTeam = event.teams.find(t => t.id === sourceMatch.loserId);
-                    if (sourceDrawType === 'CD' && loserTeam && loserTeam.consolationLosses > 0) {
-                        return null; // Already eliminated from CD
+                
+                if (sourceMatch && sourceMatch.isComplete) {
+                    // If the source match resulted in a BYE winner, its "loser" is also effectively BYE for feeding purposes
+                    if (sourceMatch.isBye && sourceMatch.winnerId !== 'BYE') { 
+                        return (sourceMatch.winnerId === sourceMatch.team1Id && sourceMatch.team2Id === 'BYE') ? 'BYE' : 
+                               (sourceMatch.winnerId === sourceMatch.team2Id && sourceMatch.team1Id === 'BYE') ? 'BYE' :
+                               sourceMatch.loserId; // Should be 'BYE' if one player got a bye
                     }
-                    return sourceMatch.loserId;
+                    if (sourceMatch.loserId === null && sourceMatch.winnerId === 'BYE') return 'BYE'; 
+                    return sourceMatch.loserId || 'BYE'; // Default to BYE if loserId is null but match is complete
                 }
-                return null;
+                return null; 
             }
             return null;
         }
