@@ -3,950 +3,715 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Badminton Tournament Manager</title>
+    <title>Badminton Tournament</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol"; margin: 0; padding: 20px; background-color: #f0f2f5; color: #1c1e21; font-size: 14px; }
+        header { background-color: #4A90E2; color: white; padding: 15px 20px; text-align: center; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        header h1 { margin: 0; font-size: 1.8em; }
+        nav#event-tabs { margin-top: 10px; }
+        nav#event-tabs button { padding: 10px 15px; margin: 0 5px; cursor: pointer; background-color: #357ABD; color: white; border: none; border-radius: 5px; font-size: 0.9em; transition: background-color 0.2s; }
+        nav#event-tabs button:hover { background-color: #2A5C8D; }
+        nav#event-tabs button.active { background-color: #1E4263; font-weight: bold; }
+        
+        #tournament-controls { text-align: center; margin-bottom: 20px; padding: 10px; background-color: #fff; border-radius: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        #tournament-controls button { padding: 10px 18px; margin: 5px; cursor: pointer; color: white; border: none; border-radius: 5px; font-size: 0.95em; transition: background-color 0.2s, box-shadow 0.2s; }
+        #tournament-controls button#save-all-teams { background-color: #4CAF50; } /* Green */
+        #tournament-controls button#save-all-teams:hover { background-color: #45a049; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        #tournament-controls button#reset-tournament { background-color: #f44336; } /* Red */
+        #tournament-controls button#reset-tournament:hover { background-color: #e53935; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            min-height: 100vh;
-            color: #333;
-        }
+        .event-container { display: none; margin-top: 20px; padding: 20px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .event-container.active { display: block; }
+        .event-container h2 { color: #4A90E2; margin-top:0; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px;}
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+        #team-setup-area { margin-bottom: 25px; padding: 15px; background-color: #f9f9f9; border-radius: 6px; }
+        #team-setup-area h3 { margin-top: 0; color: #333; }
+        .team-input-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+        .team-input-group { display: flex; align-items: center; background-color: #fff; padding: 8px; border: 1px solid #ddd; border-radius:4px;}
+        .team-input-group label { display: inline-block; width: 100px; font-size: 0.9em; color: #555; margin-right: 5px; }
+        .team-input-group input[type="text"] { padding: 8px; border: 1px solid #ccc; border-radius: 4px; flex-grow:1; font-size: 0.9em;}
+        
+        .draw-section h3 { border-bottom: 2px solid #4A90E2; padding-bottom: 8px; margin-top: 25px; margin-bottom: 15px; color: #1E4263;}
+        .draw { display: flex; flex-direction: row; overflow-x: auto; padding: 15px 5px; background-color: #fdfdfd; border: 1px solid #e0e0e0; border-radius: 6px; min-height: 350px;}
+        .round { display: flex; flex-direction: column; justify-content: space-around; margin-right: 15px; padding: 0 10px; min-width: 280px; border-right: 1px dashed #d0d0d0; }
+        .round:last-child { border-right: none; }
+        .match { background-color: #ffffff; border: 1px solid #cccccc; border-radius: 6px; padding: 12px; margin: 12px 0; position: relative; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: box-shadow 0.2s;}
+        .match:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+        .match .team { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #eee; }
+        .match .team:last-child { border-bottom: none; }
+        .match .team-name { flex-grow: 1; font-size: 0.95em; color: #333; }
+        .match .scores-container { display: flex; }
+        .match .score-input { width: 38px; padding: 5px; text-align: center; margin-left: 4px; border: 1px solid #bbb; border-radius: 3px; font-size: 0.9em;}
+        .match .match-meta { font-size: 0.75em; color: #666; margin-bottom: 6px; text-align: right; }
+        .match button.save-score { padding: 8px 12px; font-size: 0.9em; background-color: #5cb85c; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; display: block; width: 100%; transition: background-color 0.2s;}
+        .match button.save-score:hover { background-color: #4cae4c; }
+        .match .winner .team-name { font-weight: bold; color: #007bff; } /* Changed winner color */
+        .match .loser .team-name { text-decoration: line-through; color: #777; }
+        .bye { font-style: italic; color: #555; text-align: center; padding: 15px; background-color: #f8f9fa; border-radius: 4px; margin-top: 5px;}
+        .match-complete-indicator { font-weight: bold; color: #28a745; margin-top: 5px; text-align: center; font-size:0.85em; }
 
-        .header {
-            text-align: center;
-            color: white;
-            margin-bottom: 30px;
-            animation: fadeIn 0.5s ease-out;
-        }
-
-        .header h1 {
-            font-size: 3em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-
-        .header p {
-            font-size: 1.2em;
-            opacity: 0.9;
-        }
-
-        .tabs {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-        }
-
-        .tab {
-            background: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 30px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-
-        .tab:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-        }
-
-        .tab.active {
-            background: #ff6b6b;
-            color: white;
-            transform: scale(1.05);
-        }
-
-        .event-container {
-            display: none;
-            animation: slideIn 0.5s ease-out;
-        }
-
-        .event-container.active {
-            display: block;
-        }
-
-        .schools-setup {
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            margin-bottom: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-
-        .schools-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .school-input {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            padding: 15px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .school-input:hover {
-            background: #e9ecef;
-        }
-
-        .school-input label {
-            font-weight: 600;
-            color: #495057;
-        }
-
-        .school-input input {
-            padding: 10px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s ease;
-        }
-
-        .school-input input:focus {
-            outline: none;
-            border-color: #4ecdc4;
-        }
-
-        .generate-btn {
-            background: #4ecdc4;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 18px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 20px auto;
-            display: block;
-            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
-        }
-
-        .generate-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
-        }
-
-        .generate-btn:active {
-            transform: translateY(0);
-        }
-
-        .bracket-wrapper {
-            background: white;
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            overflow-x: auto;
-        }
-
-        .bracket {
-            display: flex;
-            gap: 60px;
-            min-width: 800px;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .round {
-            display: flex;
-            flex-direction: column;
-            gap: 30px;
-        }
-
-        .round-title {
-            text-align: center;
-            font-weight: 700;
-            color: #495057;
-            margin-bottom: 10px;
-            font-size: 18px;
-        }
-
-        .match {
-            background: #f8f9fa;
-            border-radius: 15px;
-            padding: 15px;
-            min-width: 250px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
-            position: relative;
-        }
-
-        .match:hover {
-            transform: scale(1.02);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.12);
-        }
-
-        .match.winner-decided .team.winner {
-            background: #51cf66;
-            color: white;
-            font-weight: 600;
-        }
-
-        .match.winner-decided .team:not(.winner) {
-            opacity: 0.6;
-        }
-
-        .team {
-            padding: 10px;
-            margin: 5px 0;
-            background: white;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .team:hover {
-            background: #e3f2fd;
-            transform: translateX(5px);
-        }
-
-        .team-name {
-            font-weight: 500;
-        }
-
-        .team-players {
-            font-size: 12px;
-            color: #6c757d;
-        }
-
-        .vs {
-            text-align: center;
-            font-weight: 600;
-            color: #6c757d;
-            margin: 5px 0;
-        }
-
-        .winner-medal {
-            width: 80px;
-            height: 80px;
-            margin: 20px auto;
-            display: block;
-            animation: bounce 2s infinite;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        .event-legend {
-            background: rgba(255,255,255,0.9);
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .event-legend h3 {
-            margin-bottom: 10px;
-            color: #2c3e50;
-        }
-
-        .reset-btn {
-            background: #ff6b6b;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            margin-left: 10px;
-        }
-
-        .reset-btn:hover {
-            background: #ff5252;
-            transform: translateY(-2px);
-        }
-
-        .score-section {
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #e0e0e0;
-        }
-
-        .score-inputs {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin: 5px 0;
-        }
-
-        .score-input {
-            width: 50px;
-            padding: 5px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 14px;
-        }
-
-        .score-input:focus {
-            outline: none;
-            border-color: #4ecdc4;
-        }
-
-        .game-label {
-            font-size: 12px;
-            color: #6c757d;
-            min-width: 50px;
-        }
-
-        .score-display {
-            display: flex;
-            gap: 15px;
-            margin-top: 5px;
-            font-size: 14px;
-        }
-
-        .game-score {
-            padding: 3px 8px;
-            background: #e9ecef;
-            border-radius: 5px;
-            font-weight: 500;
-        }
-
-        .game-score.won {
-            background: #51cf66;
-            color: white;
-        }
-
-        .save-score-btn {
-            background: #4ecdc4;
-            color: white;
-            border: none;
-            padding: 5px 15px;
-            border-radius: 5px;
-            font-size: 12px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .save-score-btn:hover {
-            background: #45b7b8;
-            transform: translateY(-1px);
-        }
-
-        .edit-score-btn {
-            background: #6c757d;
-            color: white;
-            border: none;
-            padding: 3px 10px;
-            border-radius: 5px;
-            font-size: 11px;
-            cursor: pointer;
-            margin-left: 10px;
-            transition: all 0.3s ease;
-        }
-
-        .edit-score-btn:hover {
-            background: #5a6268;
-        }
+        #loading-status { text-align: center; padding: 12px; background-color: #ffc107; color: #333; border-radius: 5px; margin-bottom:15px; font-weight:500;}
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🏸 Badminton Tournament Manager</h1>
-            <p>8 Schools • 5 Events • Knockout Format</p>
-            <div style="margin-top: 15px;">
-                <button onclick="exportTournamentData()" style="background: #28a745; color: white; border: none; padding: 8px 16px; border-radius: 5px; margin: 0 5px; cursor: pointer;">📥 Export Data</button>
-                <label for="import-file" style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 5px; margin: 0 5px; cursor: pointer; display: inline-block;">📤 Import Data</label>
-                <input type="file" id="import-file" accept=".json" onchange="importTournamentData(this.files[0])" style="display: none;">
-                <button onclick="if(confirm('Clear all tournament data?')) { localStorage.clear(); location.reload(); }" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 5px; margin: 0 5px; cursor: pointer;">🗑️ Clear All</button>
-            </div>
-        </div>
+    <header>
+        <h1>Badminton Tournament Manager</h1>
+        <nav id="event-tabs"></nav>
+    </header>
 
-        <div class="tabs">
-            <button class="tab active" onclick="showEvent('BS')">Boys Singles (BS)</button>
-            <button class="tab" onclick="showEvent('GS')">Girls Singles (GS)</button>
-            <button class="tab" onclick="showEvent('BD')">Boys Doubles (BD)</button>
-            <button class="tab" onclick="showEvent('GD')">Girls Doubles (GD)</button>
-            <button class="tab" onclick="showEvent('XD')">Mixed Doubles (XD)</button>
-        </div>
-
-        <div id="BS" class="event-container active">
-            <div class="schools-setup">
-                <h2>Boys Singles - Team Setup</h2>
-                <div class="schools-grid" id="BS-schools"></div>
-                <button class="generate-btn" onclick="generateBracket('BS')">Generate BS Bracket</button>
-                <button class="reset-btn" onclick="resetEvent('BS')">Reset BS</button>
-            </div>
-            <div class="bracket-wrapper" id="BS-bracket" style="display: none;"></div>
-        </div>
-
-        <div id="GS" class="event-container">
-            <div class="schools-setup">
-                <h2>Girls Singles - Team Setup</h2>
-                <div class="schools-grid" id="GS-schools"></div>
-                <button class="generate-btn" onclick="generateBracket('GS')">Generate GS Bracket</button>
-                <button class="reset-btn" onclick="resetEvent('GS')">Reset GS</button>
-            </div>
-            <div class="bracket-wrapper" id="GS-bracket" style="display: none;"></div>
-        </div>
-
-        <div id="BD" class="event-container">
-            <div class="schools-setup">
-                <h2>Boys Doubles - Team Setup</h2>
-                <div class="schools-grid" id="BD-schools"></div>
-                <button class="generate-btn" onclick="generateBracket('BD')">Generate BD Bracket</button>
-                <button class="reset-btn" onclick="resetEvent('BD')">Reset BD</button>
-            </div>
-            <div class="bracket-wrapper" id="BD-bracket" style="display: none;"></div>
-        </div>
-
-        <div id="GD" class="event-container">
-            <div class="schools-setup">
-                <h2>Girls Doubles - Team Setup</h2>
-                <div class="schools-grid" id="GD-schools"></div>
-                <button class="generate-btn" onclick="generateBracket('GD')">Generate GD Bracket</button>
-                <button class="reset-btn" onclick="resetEvent('GD')">Reset GD</button>
-            </div>
-            <div class="bracket-wrapper" id="GD-bracket" style="display: none;"></div>
-        </div>
-
-        <div id="XD" class="event-container">
-            <div class="schools-setup">
-                <h2>Mixed Doubles - Team Setup</h2>
-                <div class="schools-grid" id="XD-schools"></div>
-                <button class="generate-btn" onclick="generateBracket('XD')">Generate XD Bracket</button>
-                <button class="reset-btn" onclick="resetEvent('XD')">Reset XD</button>
-            </div>
-            <div class="bracket-wrapper" id="XD-bracket" style="display: none;"></div>
-        </div>
+    <div id="tournament-controls">
+        <button id="save-all-teams">Save All Team Names</button>
+        <button id="reset-tournament">Reset Tournament Data</button>
+        <p id="loading-status" style="display:none;">Loading data...</p>
     </div>
 
+    <div id="tournament-content">
+        </div>
+
     <script>
-        const schoolNames = ['School A', 'School B', 'School C', 'School D', 'School E', 'School F', 'School G', 'School H'];
-        const events = ['BS', 'GS', 'BD', 'GD', 'XD'];
-        const eventData = {};
+        const EVENT_CODES = {
+            BS: "Boy's Singles", GS: "Girl's Singles",
+            BD: "Boy's Doubles", GD: "Girl's Doubles",
+            XD: "Mixed Doubles"
+        };
+        const NUM_SCHOOLS = 16;
+        const TEAMS_PER_SCHOOL = 2;
+        const TOTAL_TEAMS_PER_EVENT = NUM_SCHOOLS * TEAMS_PER_SCHOOL; // 32
 
-        // Initialize event data
-        events.forEach(event => {
-            eventData[event] = {
-                teams: [],
-                bracket: null
-            };
-        });
+        let tournamentData = {};
+        let currentEventId = 'BS'; // Default active event
 
-        // Load saved data from localStorage
-        function loadSavedData() {
-            const saved = localStorage.getItem('badmintonTournamentData');
-            if (saved) {
-                try {
-                    const data = JSON.parse(saved);
-                    Object.assign(eventData, data);
-                    // Refresh display for active event
-                    events.forEach(event => {
-                        if (eventData[event].bracket) {
-                            document.querySelector(`#${event} .schools-setup`).style.display = 'none';
-                            document.getElementById(`${event}-bracket`).style.display = 'block';
-                            renderBracket(event);
-            
-            // Save data after each change
-            saveData();
-                        }
-                    });
-                } catch (e) {
-                    console.error('Failed to load saved data:', e);
-                }
-            }
+        // --- Initialization and Data Persistence ---
+        function initApp() {
+            loadData();
+            setupEventTabs(); // Ensure tabs are set up before rendering
+            renderCurrentEvent(); // Render the default active event
+            document.getElementById('reset-tournament').addEventListener('click', resetTournamentData);
+            document.getElementById('save-all-teams').addEventListener('click', saveAllTeamNamesFromUI);
         }
 
-        // Save data to localStorage
         function saveData() {
             try {
-                localStorage.setItem('badmintonTournamentData', JSON.stringify(eventData));
+                localStorage.setItem('badmintonTournamentData_v2', JSON.stringify(tournamentData)); // Added _v2 for potential versioning
             } catch (e) {
-                console.error('Failed to save data:', e);
+                console.error("Error saving data to localStorage:", e);
+                alert("Could not save data. LocalStorage might be full or disabled.");
             }
         }
 
-        // Initialize school inputs for each event
-        function initializeSchoolInputs() {
-            events.forEach(event => {
-                const container = document.getElementById(`${event}-schools`);
-                container.innerHTML = '';
-                
-                schoolNames.forEach((school, index) => {
-                    const isDoubles = event.includes('D');
-                    const eventName = getEventFullName(event);
-                    
-                    for (let team = 1; team <= 2; team++) {
-                        const div = document.createElement('div');
-                        div.className = 'school-input';
-                        div.innerHTML = `
-                            <label>${school} - Team ${team}</label>
-                            ${isDoubles ? `
-                                <input type="text" placeholder="Player 1 Name" id="${event}-${index}-${team}-p1">
-                                <input type="text" placeholder="Player 2 Name" id="${event}-${index}-${team}-p2">
-                            ` : `
-                                <input type="text" placeholder="Player Name" id="${event}-${index}-${team}-p1">
-                            `}
-                        `;
-                        container.appendChild(div);
-                    }
-                });
-            });
-        }
-
-        function getEventFullName(event) {
-            const names = {
-                'BS': 'Boys Singles',
-                'GS': 'Girls Singles',
-                'BD': 'Boys Doubles',
-                'GD': 'Girls Doubles',
-                'XD': 'Mixed Doubles'
-            };
-            return names[event];
-        }
-
-        function showEvent(event) {
-            // Update tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            event.target?.classList.add('active') || 
-            document.querySelector(`.tab:nth-child(${events.indexOf(event) + 1})`).classList.add('active');
-
-            // Update content
-            document.querySelectorAll('.event-container').forEach(container => {
-                container.classList.remove('active');
-            });
-            document.getElementById(event).classList.add('active');
-        }
-
-        function generateBracket(event) {
-            const teams = [];
-            const isDoubles = event.includes('D');
-            
-            // Collect team data
-            for (let school = 0; school < 8; school++) {
-                for (let team = 1; team <= 2; team++) {
-                    const p1Input = document.getElementById(`${event}-${school}-${team}-p1`);
-                    const p2Input = isDoubles ? document.getElementById(`${event}-${school}-${team}-p2`) : null;
-                    
-                    if (p1Input && p1Input.value.trim()) {
-                        const teamData = {
-                            school: schoolNames[school],
-                            teamNumber: team,
-                            players: isDoubles && p2Input ? 
-                                `${p1Input.value.trim()} & ${p2Input.value.trim()}` : 
-                                p1Input.value.trim()
-                        };
-                        teams.push(teamData);
-                    }
+        function loadData() {
+            const statusEl = document.getElementById('loading-status');
+            if(statusEl) statusEl.style.display = 'block';
+            try {
+                const storedData = localStorage.getItem('badmintonTournamentData_v2');
+                if (storedData) {
+                    tournamentData = JSON.parse(storedData);
+                    Object.keys(EVENT_CODES).forEach(eventId => { // Ensure all defined events exist
+                        if (!tournamentData[eventId]) {
+                            tournamentData[eventId] = createEventObject(eventId);
+                        } else { // Basic migration/check for existing data structures
+                            if (!tournamentData[eventId].teams || tournamentData[eventId].teams.length !== TOTAL_TEAMS_PER_EVENT) {
+                                tournamentData[eventId].teams = createInitialTeams(eventId);
+                            }
+                            if (!tournamentData[eventId].mainDraw || !tournamentData[eventId].mainDraw.rounds) {
+                                tournamentData[eventId].mainDraw = generateMainDrawStructure(eventId);
+                            }
+                            if (!tournamentData[eventId].consolationDraw || !tournamentData[eventId].consolationDraw.rounds) {
+                                tournamentData[eventId].consolationDraw = generateConsolationDrawStructure(eventId);
+                            }
+                        }
+                    });
+                } else {
+                    initializeNewTournament();
                 }
+            } catch (e) {
+                console.error("Error loading data from localStorage:", e);
+                initializeNewTournament(); // Fallback to new tournament on error
             }
-
-            if (teams.length < 16) {
-                alert(`Please enter all 16 teams for ${getEventFullName(event)}`);
-                return;
-            }
-
-            // Shuffle teams for random draw
-            const shuffled = [...teams].sort(() => Math.random() - 0.5);
-            eventData[event].teams = shuffled;
-            
-            // Generate and display bracket
-            displayBracket(event);
-            document.querySelector(`#${event} .schools-setup`).style.display = 'none';
-            document.getElementById(`${event}-bracket`).style.display = 'block';
-            
-            // Save data after generating bracket
+            if(statusEl) statusEl.style.display = 'none';
+        }
+        
+        function initializeNewTournament() {
+            tournamentData = {};
+            Object.keys(EVENT_CODES).forEach(eventId => {
+                tournamentData[eventId] = createEventObject(eventId);
+            });
             saveData();
         }
 
-        function displayBracket(event) {
-            const bracketContainer = document.getElementById(`${event}-bracket`);
-            const teams = eventData[event].teams;
-            
-            bracketContainer.innerHTML = `
-                <div class="event-legend">
-                    <h3>${getEventFullName(event)} - Knockout Tournament</h3>
-                    <p>Click on a team to select them as the winner of their match</p>
-                </div>
-                <div class="bracket" id="${event}-bracket-display"></div>
-            `;
-
-            const bracket = document.getElementById(`${event}-bracket-display`);
-            
-            // Create rounds
-            const rounds = [
-                { title: 'Round of 16', matches: 8 },
-                { title: 'Quarter-Finals', matches: 4 },
-                { title: 'Semi-Finals', matches: 2 },
-                { title: 'Final', matches: 1 }
-            ];
-
-            eventData[event].bracket = {
-                rounds: rounds.map(() => []),
-                currentRound: 0
+        function createEventObject(eventId) {
+            return {
+                id: eventId,
+                name: EVENT_CODES[eventId],
+                teams: createInitialTeams(eventId),
+                mainDraw: generateMainDrawStructure(eventId),
+                consolationDraw: generateConsolationDrawStructure(eventId),
+                setupComplete: false 
             };
-
-            // Initialize first round with teams
-            for (let i = 0; i < 8; i++) {
-                eventData[event].bracket.rounds[0].push({
-                    team1: teams[i * 2],
-                    team2: teams[i * 2 + 1],
-                    winner: null,
-                    scores: null
-                });
-            }
-
-            renderBracket(event);
         }
 
-        function renderBracket(event) {
-            const bracket = document.getElementById(`${event}-bracket-display`);
-            const bracketData = eventData[event].bracket;
-            bracket.innerHTML = '';
+        function createInitialTeams(eventId) {
+            const teams = [];
+            for (let i = 0; i < NUM_SCHOOLS; i++) {
+                for (let j = 0; j < TEAMS_PER_SCHOOL; j++) {
+                    const teamId = `${eventId}_s${i+1}_t${j+1}`;
+                    teams.push({
+                        id: teamId,
+                        name: `School ${i+1} - Team ${j+1}`,
+                        originalPlayerSlot: teams.length, // 0 to 31
+                        mainDrawLosses: 0,
+                        consolationLosses: 0
+                    });
+                }
+            }
+            return teams;
+        }
 
-            bracketData.rounds.forEach((round, roundIndex) => {
-                const roundDiv = document.createElement('div');
-                roundDiv.className = 'round';
-                
-                const roundTitle = document.createElement('div');
-                roundTitle.className = 'round-title';
-                roundTitle.textContent = ['Round of 16', 'Quarter-Finals', 'Semi-Finals', 'Final'][roundIndex];
-                roundDiv.appendChild(roundTitle);
+        function resetTournamentData() {
+            if (confirm("Are you sure you want to reset all tournament data? This cannot be undone.")) {
+                localStorage.removeItem('badmintonTournamentData_v2');
+                initializeNewTournament();
+                renderCurrentEvent(); 
+                alert("Tournament data has been reset.");
+            }
+        }
 
-                round.forEach((match, matchIndex) => {
-                    const matchDiv = document.createElement('div');
-                    matchDiv.className = 'match';
-                    if (match.winner) matchDiv.classList.add('winner-decided');
+        // --- Draw Generation Logic ---
+        function createMatchObject(id, round, matchInRound, team1Source = null, team2Source = null, isSF = false, isFinal = false, customLabel = "") {
+            return {
+                id, round, matchInRound, customLabel,
+                team1Id: null, team2Id: null,
+                team1Source, team2Source, // {type: 'seed'/'winner'/'loser', matchId: 'M1.1', slot: 0/1}
+                score1: [], score2: [],
+                winnerId: null, loserId: null,
+                isBye: false, isComplete: false,
+                isSF, isFinal, // For Bo3 games
+                loserFeedsToConsolationMatchId: null, // For MD matches
+                loserFeedsToSlotNumber: null, // 1 or 2 for team1/team2 in CD match
+            };
+        }
 
-                    if (match.team1 && match.team2) {
-                        const team1Div = createTeamDiv(match.team1, match.winner === match.team1);
-                        const team2Div = createTeamDiv(match.team2, match.winner === match.team2);
-                        
-                        team1Div.onclick = () => selectWinner(event, roundIndex, matchIndex, match.team1);
-                        team2Div.onclick = () => selectWinner(event, roundIndex, matchIndex, match.team2);
+        function generateMainDrawStructure(eventId) {
+            const rounds = [];
+            const numTeams = TOTAL_TEAMS_PER_EVENT; // 32
+            let teamsInRound = numTeams;
+            let roundNum = 1;
 
-                        const vsDiv = document.createElement('div');
-                        vsDiv.className = 'vs';
-                        vsDiv.textContent = 'VS';
+            // R1: 16 matches
+            let roundMatches = [];
+            for (let i = 0; i < teamsInRound / 2; i++) {
+                const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1, 
+                    { type: 'seed', slot: i * 2 }, { type: 'seed', slot: i * 2 + 1 });
+                // Losers of R1 feed CD-R1
+                match.loserFeedsToConsolationMatchId = `CD1.${i + 1}`;
+                match.loserFeedsToSlotNumber = (i % 2 === 0) ? 1 : 2; // Alternate slots for visual balance
+                roundMatches.push(match);
+            }
+            rounds.push(roundMatches);
+            teamsInRound /= 2; roundNum++; // 16 teams left
 
-                        matchDiv.appendChild(team1Div);
-                        matchDiv.appendChild(vsDiv);
-                        matchDiv.appendChild(team2Div);
+            // R2: 8 matches
+            roundMatches = [];
+            for (let i = 0; i < teamsInRound / 2; i++) {
+                const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
+                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` });
+                // Losers of R2 feed CD-R2
+                match.loserFeedsToConsolationMatchId = `CD2.${i + 1}`;
+                match.loserFeedsToSlotNumber = 2; // Let CD R1 winners take slot 1
+                roundMatches.push(match);
+            }
+            rounds.push(roundMatches);
+            teamsInRound /= 2; roundNum++; // 8 teams left (QF)
 
-                        // Add score section
-                        const scoreSection = createScoreSection(event, roundIndex, matchIndex, match);
-                        matchDiv.appendChild(scoreSection);
-                    } else {
-                        matchDiv.innerHTML = '<div class="team"><span class="team-name">Awaiting teams...</span></div>';
-                    }
+            // R3 (QF): 4 matches
+            roundMatches = [];
+            for (let i = 0; i < teamsInRound / 2; i++) {
+                const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
+                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` });
+                // Losers of QF feed CD-R4 (after CD-R3 playdown)
+                match.loserFeedsToConsolationMatchId = `CD4.${i + 1}`;
+                match.loserFeedsToSlotNumber = 2; // Let CD R3 winners take slot 1
+                roundMatches.push(match);
+            }
+            rounds.push(roundMatches);
+            teamsInRound /= 2; roundNum++; // 4 teams left (SF)
 
-                    roundDiv.appendChild(matchDiv);
-                });
+            // R4 (SF): 2 matches (Best of 3)
+            roundMatches = [];
+            for (let i = 0; i < teamsInRound / 2; i++) {
+                const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
+                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` },
+                    true, false); // isSF=true
+                // Losers of SF feed CD-R6 (after CD-R5 playdown)
+                match.loserFeedsToConsolationMatchId = `CD6.${i + 1}`;
+                match.loserFeedsToSlotNumber = 2; // Let CD R5 winners take slot 1
+                roundMatches.push(match);
+            }
+            rounds.push(roundMatches);
+            teamsInRound /= 2; roundNum++; // 2 teams left (Final)
 
-                bracket.appendChild(roundDiv);
+            // R5 (Final): 1 match (Best of 3)
+            roundMatches = [];
+            roundMatches.push(createMatchObject(`M${roundNum}.1`, roundNum, 1,
+                { type: 'winner', matchId: `M${roundNum-1}.1` }, { type: 'winner', matchId: `M${roundNum-1}.2` },
+                false, true)); // isFinal=true
+            rounds.push(roundMatches);
+            
+            return { rounds };
+        }
+
+        function generateConsolationDrawStructure(eventId) {
+            const rounds = [];
+            let roundNum = 1;
+
+            // CD-R1: 8 matches (16 L_M1)
+            let roundMatches = [];
+            for (let i = 0; i < 8; i++) {
+                // Source for these will be set by MD loserFeedsTo...
+                roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1, 
+                    { type: 'loser', matchId: `M1.${i*2+1}` }, // Placeholder, will be set by MD
+                    { type: 'loser', matchId: `M1.${i*2+2}` }, // Placeholder
+                     false, false, "CD R1"));
+            }
+            rounds.push(roundMatches); roundNum++;
+
+            // CD-R2: 8 matches (8 W_C1 vs 8 L_M2)
+            roundMatches = [];
+            for (let i = 0; i < 8; i++) {
+                roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1,
+                    { type: 'winner', matchId: `CD${roundNum-1}.${i+1}` },
+                    { type: 'loser', matchId: `M2.${i+1}` }, // Placeholder
+                    false, false, "CD R2"));
+            }
+            rounds.push(roundMatches); roundNum++;
+
+            // CD-R3A (Play-down for 8 W_C2): 4 matches
+            roundMatches = [];
+            for (let i = 0; i < 4; i++) {
+                roundMatches.push(createMatchObject(`CD${roundNum}A.${i+1}`, roundNum, i+1,
+                    { type: 'winner', matchId: `CD${roundNum-1}.${i*2+1}` },
+                    { type: 'winner', matchId: `CD${roundNum-1}.${i*2+2}` },
+                    false, false, "CD R3 Playdown"));
+            }
+            rounds.push(roundMatches); // Still roundNum 3 conceptually for W_C2 playdown
+
+            // CD-R4 (4 W_C3A vs 4 L_M3/QF): 4 matches
+            let nextConsolationRoundNum = roundNum + 1;
+            roundMatches = [];
+            for (let i = 0; i < 4; i++) {
+                roundMatches.push(createMatchObject(`CD${nextConsolationRoundNum}.${i+1}`, nextConsolationRoundNum, i+1,
+                    { type: 'winner', matchId: `CD${roundNum}A.${i+1}` },
+                    { type: 'loser', matchId: `M3.${i+1}` }, // Placeholder for QF losers
+                    false, false, "CD R4 (vs QFL)"));
+            }
+            rounds.push(roundMatches); roundNum = nextConsolationRoundNum + 1;
+
+            // CD-R5A (Play-down for 4 W_C4): 2 matches
+            roundMatches = [];
+            for (let i = 0; i < 2; i++) {
+                roundMatches.push(createMatchObject(`CD${roundNum}A.${i+1}`, roundNum, i+1,
+                    { type: 'winner', matchId: `CD${roundNum-1}.${i*2+1}` },
+                    { type: 'winner', matchId: `CD${roundNum-1}.${i*2+2}` },
+                    false, false, "CD R5 Playdown"));
+            }
+            rounds.push(roundMatches);
+
+            // CD-R6 (2 W_C5A vs 2 L_M4/SF): 2 matches
+            nextConsolationRoundNum = roundNum + 1;
+            roundMatches = [];
+            for (let i = 0; i < 2; i++) {
+                roundMatches.push(createMatchObject(`CD${nextConsolationRoundNum}.${i+1}`, nextConsolationRoundNum, i+1,
+                    { type: 'winner', matchId: `CD${roundNum}A.${i+1}` },
+                    { type: 'loser', matchId: `M4.${i+1}` }, // Placeholder for SF losers
+                    false, false, "CD Semi-Finals"));
+            }
+            rounds.push(roundMatches); roundNum = nextConsolationRoundNum + 1;
+
+            // CD-R7 (Consolation Final): 1 match
+            roundMatches = [];
+            roundMatches.push(createMatchObject(`CD${roundNum}.1`, roundNum, 1,
+                { type: 'winner', matchId: `CD${roundNum-1}.1` },
+                { type: 'winner', matchId: `CD${roundNum-1}.2` },
+                false, true, "CD Final")); // isFinal=true for label, not Bo3 unless specified
+            rounds.push(roundMatches);
+
+            return { rounds };
+        }
+
+
+        // --- UI Rendering ---
+        function setupEventTabs() {
+            const tabsContainer = document.getElementById('event-tabs');
+            tabsContainer.innerHTML = ''; 
+            Object.keys(EVENT_CODES).forEach(eventId => {
+                const button = document.createElement('button');
+                button.dataset.event = eventId;
+                button.textContent = EVENT_CODES[eventId];
+                if (eventId === currentEventId) button.classList.add('active');
+                button.addEventListener('click', () => switchEventTab(eventId));
+                tabsContainer.appendChild(button);
             });
 
-            // Show winner if tournament is complete
-            const finalMatch = bracketData.rounds[3][0];
-            if (finalMatch && finalMatch.winner) {
-                const winnerDiv = document.createElement('div');
-                winnerDiv.className = 'round';
-                winnerDiv.innerHTML = `
-                    <div class="round-title">🏆 CHAMPION 🏆</div>
-                    <div class="match" style="background: linear-gradient(135deg, #ffd700, #ffed4e); border: 3px solid #ffd700;">
-                        ${createTeamDiv(finalMatch.winner, true).outerHTML}
+            const tournamentContentEl = document.getElementById('tournament-content');
+            tournamentContentEl.innerHTML = ''; 
+            Object.keys(EVENT_CODES).forEach(eventId => {
+                const eventDiv = document.createElement('div');
+                eventDiv.id = `event-${eventId}-container`;
+                eventDiv.classList.add('event-container');
+                if (eventId === currentEventId) eventDiv.classList.add('active');
+                
+                eventDiv.innerHTML = `
+                    <h2>${EVENT_CODES[eventId]}</h2>
+                    <div id="team-setup-area-${eventId}" class="team-setup-area">
+                        <h3>Team Names Entry</h3>
+                        <div id="team-names-input-${eventId}" class="team-input-grid"></div>
                     </div>
-                    <svg class="winner-medal" viewBox="0 0 100 100">
-                        <circle cx="50" cy="50" r="45" fill="#ffd700" stroke="#ff6b6b" stroke-width="5"/>
-                        <text x="50" y="60" text-anchor="middle" font-size="30" font-weight="bold" fill="#fff">1st</text>
-                    </svg>
+                    <div class="draw-section">
+                        <h3>Main Draw</h3>
+                        <div id="main-draw-${eventId}" class="draw"></div>
+                    </div>
+                    <div class="draw-section">
+                        <h3>Consolation Draw</h3>
+                        <div id="consolation-draw-${eventId}" class="draw"></div>
+                    </div>
                 `;
-                bracket.appendChild(winnerDiv);
-            }
+                tournamentContentEl.appendChild(eventDiv);
+            });
         }
 
-        function createTeamDiv(team, isWinner) {
-            const div = document.createElement('div');
-            div.className = 'team' + (isWinner ? ' winner' : '');
-            div.innerHTML = `
-                <div>
-                    <div class="team-name">${team.school} - Team ${team.teamNumber}</div>
-                    <div class="team-players">${team.players}</div>
-                </div>
-                ${isWinner ? '🏆' : ''}
-            `;
-            return div;
+        function switchEventTab(eventId) {
+            currentEventId = eventId;
+            document.querySelectorAll('#event-tabs button').forEach(btn => btn.classList.remove('active'));
+            const currentButton = document.querySelector(`#event-tabs button[data-event="${eventId}"]`);
+            if (currentButton) currentButton.classList.add('active');
+            
+            document.querySelectorAll('.event-container').forEach(container => container.classList.remove('active'));
+            const currentContainer = document.getElementById(`event-${eventId}-container`);
+            if (currentContainer) currentContainer.classList.add('active');
+            renderCurrentEvent();
         }
 
-        function createScoreSection(event, roundIndex, matchIndex, match) {
-            const scoreSection = document.createElement('div');
-            scoreSection.className = 'score-section';
+        function renderCurrentEvent() {
+            const eventData = tournamentData[currentEventId];
+            if (!eventData) return;
             
-            const isBestOfThree = roundIndex >= 2; // Semi-finals and finals
-            const numGames = isBestOfThree ? 3 : 1;
-            
-            if (!match.scores || match.scores.editing) {
-                // Show input form
-                const scoreInputs = document.createElement('div');
-                
-                for (let game = 0; game < numGames; game++) {
-                    const gameDiv = document.createElement('div');
-                    gameDiv.className = 'score-inputs';
-                    
-                    const label = document.createElement('span');
-                    label.className = 'game-label';
-                    label.textContent = isBestOfThree ? `Game ${game + 1}:` : 'Score:';
-                    
-                    const input1 = document.createElement('input');
-                    input1.type = 'number';
-                    input1.className = 'score-input';
-                    input1.placeholder = '0';
-                    input1.min = '0';
-                    input1.max = '30';
-                    input1.id = `${event}-${roundIndex}-${matchIndex}-${game}-t1`;
-                    if (match.scores && match.scores.games[game]) {
-                        input1.value = match.scores.games[game].team1;
-                    }
-                    
-                    const dash = document.createElement('span');
-                    dash.textContent = ' - ';
-                    
-                    const input2 = document.createElement('input');
-                    input2.type = 'number';
-                    input2.className = 'score-input';
-                    input2.placeholder = '0';
-                    input2.min = '0';
-                    input2.max = '30';
-                    input2.id = `${event}-${roundIndex}-${matchIndex}-${game}-t2`;
-                    if (match.scores && match.scores.games[game]) {
-                        input2.value = match.scores.games[game].team2;
-                    }
-                    
-                    gameDiv.appendChild(label);
-                    gameDiv.appendChild(input1);
-                    gameDiv.appendChild(dash);
-                    gameDiv.appendChild(input2);
-                    
-                    scoreInputs.appendChild(gameDiv);
-                }
-                
-                const saveBtn = document.createElement('button');
-                saveBtn.className = 'save-score-btn';
-                saveBtn.textContent = 'Save Scores';
-                saveBtn.onclick = () => saveScores(event, roundIndex, matchIndex, numGames);
-                
-                scoreSection.appendChild(scoreInputs);
-                scoreSection.appendChild(saveBtn);
-            } else {
-                // Show saved scores
-                const scoreDisplay = document.createElement('div');
-                scoreDisplay.className = 'score-display';
-                
-                let team1Wins = 0;
-                let team2Wins = 0;
-                
-                match.scores.games.forEach((game, index) => {
-                    if (game) {
-                        const gameScore = document.createElement('span');
-                        gameScore.className = 'game-score';
-                        
-                        if (game.team1 > game.team2) {
-                            gameScore.classList.add('won');
-                            team1Wins++;
-                        } else if (game.team2 > game.team1) {
-                            team2Wins++;
-                        }
-                        
-                        gameScore.textContent = `${game.team1}-${game.team2}`;
-                        scoreDisplay.appendChild(gameScore);
+            renderTeamSetupUI(currentEventId);
+            populateAllDrawsForEvent(currentEventId); // Populate first
+            renderDraw(eventData.mainDraw, `main-draw-${currentEventId}`, currentEventId, 'MD');
+            renderDraw(eventData.consolationDraw, `consolation-draw-${currentEventId}`, currentEventId, 'CD');
+        }
+
+        function renderTeamSetupUI(eventId) {
+            const container = document.getElementById(`team-names-input-${eventId}`);
+            if (!container) return;
+            container.innerHTML = '';
+            const teams = tournamentData[eventId].teams;
+            teams.forEach((team, index) => {
+                const group = document.createElement('div');
+                group.classList.add('team-input-group');
+                const label = document.createElement('label');
+                label.setAttribute('for', `team-name-${eventId}-${index}`);
+                label.textContent = `Entry ${index + 1}:`; // Generic "Entry"
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.id = `team-name-${eventId}-${index}`;
+                input.dataset.teamId = team.id;
+                input.value = team.name;
+                group.appendChild(label);
+                group.appendChild(input);
+                container.appendChild(group);
+            });
+        }
+        
+        function saveAllTeamNamesFromUI() {
+            let changesMade = false;
+            Object.keys(EVENT_CODES).forEach(eventId => {
+                const event = tournamentData[eventId];
+                if (!event || !event.teams) return;
+                event.teams.forEach((team, index) => {
+                    const inputElement = document.getElementById(`team-name-${eventId}-${index}`);
+                    if (inputElement && inputElement.value !== team.name) {
+                        team.name = inputElement.value;
+                        changesMade = true;
                     }
                 });
-                
-                const editBtn = document.createElement('button');
-                editBtn.className = 'edit-score-btn';
-                editBtn.textContent = 'Edit';
-                editBtn.onclick = () => editScores(event, roundIndex, matchIndex);
-                
-                scoreSection.appendChild(scoreDisplay);
-                scoreSection.appendChild(editBtn);
+            });
+
+            if (changesMade) {
+                saveData();
+                renderCurrentEvent(); 
+                alert("All team names saved!");
+            } else {
+                alert("No changes to team names detected.");
             }
-            
-            return scoreSection;
         }
 
-        function saveScores(event, roundIndex, matchIndex, numGames) {
-            const match = eventData[event].bracket.rounds[roundIndex][matchIndex];
-            const scores = { games: [], editing: false };
-            
-            let team1Wins = 0;
-            let team2Wins = 0;
-            
-            for (let game = 0; game < numGames; game++) {
-                const score1 = parseInt(document.getElementById(`${event}-${roundIndex}-${matchIndex}-${game}-t1`).value) || 0;
-                const score2 = parseInt(document.getElementById(`${event}-${roundIndex}-${matchIndex}-${game}-t2`).value) || 0;
-                
-                if (score1 > 0 || score2 > 0) {
-                    scores.games.push({ team1: score1, team2: score2 });
+        function renderDraw(drawData, containerId, eventId, drawTypePrefix) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = ''; 
+
+            if (!drawData || !drawData.rounds || drawData.rounds.length === 0) {
+                container.innerHTML = '<p style="padding:10px; color:#777;">Draw not generated yet or no matches.</p>';
+                return;
+            }
+
+            drawData.rounds.forEach((roundMatches, roundIndex) => {
+                const roundDiv = document.createElement('div');
+                roundDiv.classList.add('round');
+                roundDiv.dataset.roundIndex = roundIndex;
+
+                roundMatches.forEach(match => {
+                    const matchDiv = document.createElement('div');
+                    matchDiv.classList.add('match');
+                    matchDiv.id = `match-${eventId}-${match.id}`; // Ensure unique DOM ID
                     
-                    if (score1 > score2) team1Wins++;
-                    else if (score2 > score1) team2Wins++;
-                }
-            }
-            
-            if (scores.games.length === 0) {
-                alert('Please enter at least one game score');
-                return;
-            }
-            
-            // Validate scores (must reach 21, win by 2, max 30)
-            for (let game of scores.games) {
-                if (Math.max(game.team1, game.team2) < 21) {
-                    alert('Game must be won with at least 21 points');
-                    return;
-                }
-                if (Math.max(game.team1, game.team2) >= 21 && Math.max(game.team1, game.team2) <= 29) {
-                    if (Math.abs(game.team1 - game.team2) < 2) {
-                        alert('Must win by 2 points (unless 30-29)');
-                        return;
+                    const team1Name = getTeamNameById(currentEventId, match.team1Id) || (match.team1Id === 'BYE' ? 'BYE' : 'TBD');
+                    const team2Name = getTeamNameById(currentEventId, match.team2Id) || (match.team2Id === 'BYE' ? 'BYE' : 'TBD');
+                    
+                    let scoreInputs1 = '', scoreInputs2 = '';
+                    const numGamesToPlay = (match.isSF || match.isFinal) ? 3 : 1; // Main Draw SF/Final are Bo3
+
+                    for (let g = 0; g < numGamesToPlay; g++) {
+                        scoreInputs1 += `<input type="number" class="score-input team1-game${g+1}" min="0" max="30" ${match.isComplete ? 'disabled' : ''} value="${match.score1[g] !== undefined ? match.score1[g] : ''}" title="Game ${g+1} Score for ${team1Name}"> `;
+                        scoreInputs2 += `<input type="number" class="score-input team2-game${g+1}" min="0" max="30" ${match.isComplete ? 'disabled' : ''} value="${match.score2[g] !== undefined ? match.score2[g] : ''}" title="Game ${g+1} Score for ${team2Name}"> `;
                     }
+                    
+                    let matchLabel = match.customLabel || `${match.id}`;
+                    if (match.isSF) matchLabel += " (MD SF - Bo3)";
+                    if (match.isFinal) matchLabel += " (MD Final - Bo3)";
+                    if (match.id.startsWith("CD") && match.isFinal) matchLabel += " (CD Final)";
+
+
+                    matchDiv.innerHTML = `
+                        <div class="match-meta">${matchLabel}</div>
+                        <div class="team ${match.winnerId === match.team1Id && match.isComplete ? 'winner' : (match.loserId === match.team1Id && match.isComplete ? 'loser' : '')}">
+                            <span class="team-name">${team1Name}</span>
+                            <span class="scores-container">${scoreInputs1}</span>
+                        </div>
+                        <div class="team ${match.winnerId === match.team2Id && match.isComplete ? 'winner' : (match.loserId === match.team2Id && match.isComplete ? 'loser' : '')}">
+                            <span class="team-name">${team2Name}</span>
+                            <span class="scores-container">${scoreInputs2}</span>
+                        </div>
+                        ${!match.isComplete && match.team1Id && match.team2Id && match.team1Id !== 'BYE' && match.team2Id !== 'BYE' ? 
+                            `<button class="save-score" onclick="handleScoreSave('${currentEventId}', '${drawTypePrefix}', '${match.id}')">Save Score</button>` : ''}
+                        ${match.isBye ? `<div class="bye">${getTeamNameById(currentEventId, match.winnerId)} advances (BYE)</div>` : ''}
+                        ${match.isComplete && !match.isBye ? `<div class="match-complete-indicator">Winner: ${getTeamNameById(currentEventId, match.winnerId)}</div>` : ''}
+                    `;
+                    roundDiv.appendChild(matchDiv);
+                });
+                container.appendChild(roundDiv);
+            });
+        }
+
+        function getTeamNameById(eventId, teamId) {
+            if (!teamId) return null;
+            if (teamId === 'BYE') return 'BYE';
+            const event = tournamentData[eventId];
+            if (!event || !event.teams) return teamId; 
+            const team = event.teams.find(t => t.id === teamId);
+            return team ? team.name : teamId; // Fallback to ID
+        }
+        
+        function findMatchById(eventId, drawTypePrefix, matchId) {
+            const event = tournamentData[eventId];
+            const draw = drawTypePrefix === 'MD' ? event.mainDraw : event.consolationDraw;
+            for (const round of draw.rounds) {
+                const foundMatch = round.find(m => m.id === matchId);
+                if (foundMatch) return foundMatch;
+            }
+            return null;
+        }
+
+        // --- Score Handling and Advancement ---
+        function handleScoreSave(eventId, drawTypePrefix, matchId) {
+            const match = findMatchById(eventId, drawTypePrefix, matchId);
+            if (!match) { console.error("Match not found:", matchId); return; }
+
+            const numGamesToPlay = (match.isSF || match.isFinal) ? 3 : 1;
+            const scores1 = [], scores2 = [];
+            
+            const matchDiv = document.getElementById(`match-${eventId}-${match.id}`);
+            if (!matchDiv) { console.error("Match div not found for scores:", `match-${eventId}-${match.id}`); return; }
+
+
+            for (let g = 0; g < numGamesToPlay; g++) {
+                const s1El = matchDiv.querySelector(`.team1-game${g+1}`);
+                const s2El = matchDiv.querySelector(`.team2-game${g+1}`);
+                if (!s1El || !s2El) { alert(`Score input elements for Game ${g+1} not found.`); return; }
+
+                const s1 = parseInt(s1El.value);
+                const s2 = parseInt(s2El.value);
+
+                // Collect all entered scores, even if not a full game.
+                if (!isNaN(s1)) scores1.push(s1); else scores1.push(null);
+                if (!isNaN(s2)) scores2.push(s2); else scores2.push(null);
+            }
+            match.score1 = scores1.filter(s => s !== null); // Store only entered scores
+            match.score2 = scores2.filter(s => s !== null);
+
+            let team1GamesWon = 0;
+            let team2GamesWon = 0;
+            let gameWinnerDetermined = true;
+
+            for (let g = 0; g < numGamesToPlay; g++) {
+                const s1 = match.score1[g];
+                const s2 = match.score2[g];
+
+                if (s1 === undefined || s2 === undefined || s1 === null || s2 === null) { // Game not fully scored
+                    if (g < team1GamesWon + team2GamesWon) continue; // Already won/lost this game as part of match outcome
+                    gameWinnerDetermined = false; 
+                    break;
+                }
+
+                if ((s1 >= 21 || s2 >= 21) && 
+                    ( (s1 >= s2 + 2 && s1 < 30) || (s2 >= s1 + 2 && s2 < 30) || (s1 === 30 && s1 > s2) || (s2 === 30 && s2 > s1) || (s1 === 21 && s2 < 20 && numGamesToPlay ===1) || (s2 === 21 && s1 < 20 && numGamesToPlay ===1))) {
+                    if (s1 > s2) team1GamesWon++;
+                    else team2GamesWon++;
+                } else if (s1 === 20 && s2 === 20 && numGamesToPlay > 1 ) { // 20-all rule
+                     gameWinnerDetermined = false; break; // Needs more points
+                } else if ( (s1 < 21 && s2 < 21) && numGamesToPlay === 1 ) {
+                     gameWinnerDetermined = false; break; // Single game not finished
+                } else if (Math.abs(s1-s2) < 2 && (s1 >=20 || s2 >=20) && s1 < 29 && s2 < 29) {
+                     gameWinnerDetermined = false; break; // Needs to win by 2
+                } else if (s1 < 21 && s2 < 21 && (team1GamesWon <2 && team2GamesWon <2 && numGamesToPlay ===3)) {
+                    // In Bo3, if one game is like 15-10, it's not complete.
+                    gameWinnerDetermined = false; break;
                 }
             }
-            
-            match.scores = scores;
-            
-            // Auto-select winner based on games won
-            if (team1Wins > team2Wins) {
-                selectWinner(event, roundIndex, matchIndex, match.team1, false);
-            } else if (team2Wins > team1Wins) {
-                selectWinner(event, roundIndex, matchIndex, match.team2, false);
-            }
-            
-            renderBracket(event);
-        }
 
-        function editScores(event, roundIndex, matchIndex) {
-            const match = eventData[event].bracket.rounds[roundIndex][matchIndex];
-            if (match.scores) {
-                match.scores.editing = true;
-            }
-            renderBracket(event);
-        }
-
-        function selectWinner(event, roundIndex, matchIndex, winner, checkScores = true) {
-            const bracketData = eventData[event].bracket;
-            const match = bracketData.rounds[roundIndex][matchIndex];
-            
-            if (!match.team1 || !match.team2) return;
-            
-            // For semifinals and finals, check if scores are entered
-            if (checkScores && roundIndex >= 2 && !match.scores) {
-                alert('Please enter match scores before selecting a winner');
+            if (!gameWinnerDetermined && !( (numGamesToPlay === 3 && (team1GamesWon >= 2 || team2GamesWon >=2)) || (numGamesToPlay === 1 && (team1GamesWon >=1 || team2GamesWon >=1)) )) {
+                alert(`Match scores for ${match.id} are incomplete or invalid under badminton rules (win by 2, cap 30 for games to 21). Please check scores for all games.`);
                 return;
             }
-            
-            match.winner = winner;
 
-            // Advance winner to next round
-            if (roundIndex < 3) {
-                const nextRoundIndex = roundIndex + 1;
-                const nextMatchIndex = Math.floor(matchIndex / 2);
-                
-                if (!bracketData.rounds[nextRoundIndex][nextMatchIndex]) {
-                    bracketData.rounds[nextRoundIndex][nextMatchIndex] = {
-                        team1: null,
-                        team2: null,
-                        winner: null,
-                        scores: null
-                    };
-                }
-
-                if (matchIndex % 2 === 0) {
-                    bracketData.rounds[nextRoundIndex][nextMatchIndex].team1 = winner;
-                } else {
-                    bracketData.rounds[nextRoundIndex][nextMatchIndex].team2 = winner;
-                }
+            if (numGamesToPlay === 1) {
+                if (team1GamesWon === 1) match.winnerId = match.team1Id;
+                else if (team2GamesWon === 1) match.winnerId = match.team2Id;
+                else { alert("Single game match winner could not be determined."); return; }
+            } else { // Best of 3
+                if (team1GamesWon >= 2) match.winnerId = match.team1Id;
+                else if (team2GamesWon >= 2) match.winnerId = match.team2Id;
+                else { alert("Best of 3 match winner could not be determined. Two games must be won."); return; }
             }
-
-            renderBracket(event);
-        }
-
-        function resetEvent(event) {
-            eventData[event] = {
-                teams: [],
-                bracket: null
-            };
-            document.querySelector(`#${event} .schools-setup`).style.display = 'block';
-            document.getElementById(`${event}-bracket`).style.display = 'none';
             
-            // Clear inputs
-            const inputs = document.querySelectorAll(`#${event}-schools input`);
-            inputs.forEach(input => input.value = '');
+            match.loserId = (match.winnerId === match.team1Id) ? match.team2Id : match.team1Id;
+            match.isComplete = true;
+
+            // Update team loss counts
+            const loserTeamObj = tournamentData[eventId].teams.find(t => t.id === match.loserId);
+            if (loserTeamObj) {
+                if (drawTypePrefix === 'MD') loserTeamObj.mainDrawLosses++;
+                else loserTeamObj.consolationLosses++;
+            }
+            
+            saveData();
+            renderCurrentEvent(); // Re-render to show updates & propagate
+        }
+        
+        function populateAllDrawsForEvent(eventId) {
+            const event = tournamentData[eventId];
+            if (!event) return;
+            
+            // Populate Main Draw first, as its outcomes feed Consolation
+            populateSpecificDraw(eventId, event.mainDraw, 'MD');
+            // Then populate Consolation Draw
+            populateSpecificDraw(eventId, event.consolationDraw, 'CD');
         }
 
-        // Initialize on load
-        initializeSchoolInputs();
-        loadSavedData();
 
-        // Add data export/import functionality
-        function exportTournamentData() {
-            const dataStr = JSON.stringify(eventData, null, 2);
-            const blob = new Blob([dataStr], {type: 'application/json'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `tournament-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+        function populateSpecificDraw(eventId, drawData, drawTypePrefix) {
+            const event = tournamentData[eventId];
+            if (!drawData || !drawData.rounds) return;
+
+            drawData.rounds.forEach(round => {
+                round.forEach(match => {
+                    if (match.isComplete) return; // Don't re-process completed matches
+
+                    // Populate team1Id
+                    if (!match.team1Id && match.team1Source) {
+                        match.team1Id = getPlayerIdFromSource(eventId, match.team1Source);
+                    }
+                    // Populate team2Id
+                    if (!match.team2Id && match.team2Source) {
+                        match.team2Id = getPlayerIdFromSource(eventId, match.team2Source);
+                    }
+
+                    // Auto-complete BYEs
+                    if (!match.isComplete && (match.team1Id === 'BYE' || match.team2Id === 'BYE')) {
+                        if (match.team1Id === 'BYE' && match.team2Id && match.team2Id !== 'BYE') {
+                            match.winnerId = match.team2Id;
+                        } else if (match.team2Id === 'BYE' && match.team1Id && match.team1Id !== 'BYE') {
+                            match.winnerId = match.team1Id;
+                        } else if (match.team1Id === 'BYE' && match.team2Id === 'BYE') {
+                             // Should not happen with proper seeding if total teams is even.
+                             // Or could mean no player available for either slot. For now, treat as no match.
+                             match.winnerId = 'BYE'; // Or null, effectively a double walkover
+                        }
+                        if (match.winnerId) {
+                             match.isComplete = true;
+                             match.isBye = true;
+                             match.score1 = [0]; match.score2 = [0]; // Nominal score for bye
+                             // Loser of a bye match (the BYE itself) doesn't feed consolation.
+                        }
+                    }
+
+                    // Handle MD loser feeding to CD
+                    if (drawTypePrefix === 'MD' && match.isComplete && match.loserId && match.loserId !== 'BYE') {
+                        const loserTeam = event.teams.find(t => t.id === match.loserId);
+                        // Only feed if it's the first loss in MD
+                        if (loserTeam && loserTeam.mainDrawLosses === 1) { 
+                            const cdMatchToFeed = findMatchById(eventId, 'CD', match.loserFeedsToConsolationMatchId);
+                            if (cdMatchToFeed && !cdMatchToFeed.isComplete) {
+                                if (match.loserFeedsToSlotNumber === 1 && !cdMatchToFeed.team1Id) {
+                                    cdMatchToFeed.team1Id = match.loserId;
+                                } else if (match.loserFeedsToSlotNumber === 2 && !cdMatchToFeed.team2Id) {
+                                    cdMatchToFeed.team2Id = match.loserId;
+                                }
+                                // Check if the CD match now has both players and one is a BYE (from upstream)
+                                if(cdMatchToFeed.team1Id && cdMatchToFeed.team2Id === 'BYE') {
+                                    cdMatchToFeed.winnerId = cdMatchToFeed.team1Id;
+                                    cdMatchToFeed.isComplete = true; cdMatchToFeed.isBye = true;
+                                } else if (cdMatchToFeed.team2Id && cdMatchToFeed.team1Id === 'BYE') {
+                                    cdMatchToFeed.winnerId = cdMatchToFeed.team2Id;
+                                    cdMatchToFeed.isComplete = true; cdMatchToFeed.isBye = true;
+                                }
+                            }
+                        }
+                    }
+                });
+            });
         }
 
-        function importTournamentData(file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    Object.assign(eventData, data);
-                    saveData();
-                    location.reload(); // Refresh to show imported data
-                } catch (err) {
-                    alert('Failed to import file. Please check the file format.');
+        function getPlayerIdFromSource(eventId, source) {
+            if (!source) return null;
+            const event = tournamentData[eventId];
+
+            if (source.type === 'seed') {
+                return event.teams[source.slot] ? event.teams[source.slot].id : 'BYE'; // Assign BYE if team slot is out of bounds
+            } else if (source.type === 'winner') {
+                const sourceDrawType = source.matchId.startsWith('M') ? 'MD' : 'CD';
+                const sourceMatch = findMatchById(eventId, sourceDrawType, source.matchId);
+                return sourceMatch && sourceMatch.isComplete ? sourceMatch.winnerId : null;
+            } else if (source.type === 'loser') { // This is mainly for CD structure definition, actual feeding handled by MD match completion
+                const sourceDrawType = source.matchId.startsWith('M') ? 'MD' : 'CD';
+                const sourceMatch = findMatchById(eventId, sourceDrawType, source.matchId);
+                // Check if this player has already lost in CD, if so, they are out.
+                if (sourceMatch && sourceMatch.isComplete && sourceMatch.loserId) {
+                    const loserTeam = event.teams.find(t => t.id === sourceMatch.loserId);
+                    if (sourceDrawType === 'CD' && loserTeam && loserTeam.consolationLosses > 0) {
+                        return null; // Already eliminated from CD
+                    }
+                    return sourceMatch.loserId;
                 }
-            };
-            reader.readAsText(file);
+                return null;
+            }
+            return null;
         }
+
+        // --- Entry Point ---
+        document.addEventListener('DOMContentLoaded', initApp);
+
     </script>
 </body>
 </html>
