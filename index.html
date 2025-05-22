@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Badminton Tournament Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            background: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .tab:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+
+        .tab.active {
+            background: #ff6b6b;
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .event-container {
+            display: none;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .event-container.active {
+            display: block;
+        }
+
+        .schools-setup {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .schools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .school-input {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .school-input:hover {
+            background: #e9ecef;
+        }
+
+        .school-input label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .school-input input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .school-input input:focus {
+            outline: none;
+            border-color: #4ecdc4;
+        }
+
+        .generate-btn {
+            background: #4ecdc4;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 20px auto;
+            display: block;
+            box-shadow: 0 4px 15px rgba(78, 205, 196, 0.3);
+        }
+
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(78, 205, 196, 0.4);
+        }
+
+        .generate-btn:active {
+            transform: translateY(0);
+        }
+
+        .bracket-wrapper {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow-x: auto;
+        }
+
+        .bracket {
+            display: flex;
+            gap: 60px;
+            min-width: 800px;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .round {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .round-title {
+            text-align: center;
+            font-weight: 700;
+            color: #495057;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .match {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 15px;
+            min-width: 250px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .match:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.12);
+        }
+
+        .match.winner-decided .team.winner {
+            background: #51cf66;
+            color: white;
+            font-weight: 600;
+        }
+
+        .match.winner-decided .team:not(.winner) {
+            opacity: 0.6;
+        }
+
+        .team {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .team:hover {
+            background: #e3f2fd;
+            transform: translateX(5px);
+        }
+
+        .team-name {
+            font-weight: 500;
+        }
+
+        .team-players {
+            font-size: 12px;
+            color: #6c757d;
+        }
+
+        .vs {
+            text-align: center;
+            font-weight: 600;
+            color: #6c757d;
+            margin: 5px 0;
+        }
+
+        .winner-medal {
+            width: 80px;
+            height: 80px;
+            margin: 20px auto;
+            display: block;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .event-legend {
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .event-legend h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .reset-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+
+        .reset-btn:hover {
+            background: #ff5252;
+            transform: translateY(-2px);
+        }
+
+        .score-section {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .score-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 5px 0;
+        }
+
+        .score-input {
+            width: 50px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .score-input:focus {
+            outline: none;
+            border-color: #4ecdc4;
+        }
+
+        .game-label {
+            font-size: 12px;
+            color: #6c757d;
+            min-width: 50px;
+        }
+
+        .score-display {
+            display: flex;
+            gap: 15px;
+            margin-top: 5px;
+            font-size: 14px;
+        }
+
+        .game-score {
+            padding: 3px 8px;
+            background: #e9ecef;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+
+        .game-score.won {
+            background: #51cf66;
+            color: white;
+        }
+
+        .save-score-btn {
+            background: #4ecdc4;
+            color: white;
+            border: none;
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .save-score-btn:hover {
+            background: #45b7b8;
+            transform: translateY(-1px);
+        }
+
+        .edit-score-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 3px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .edit-score-btn:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏸 Badminton Tournament Manager</h1>
+            <p>8 Schools • 5 Events • Knockout Format</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showEvent('BS')">Boys Singles (BS)</button>
+            <button class="tab" onclick="showEvent('GS')">Girls Singles (GS)</button>
+            <button class="tab" onclick="showEvent('BD')">Boys Doubles (BD)</button>
+            <button class="tab" onclick="showEvent('GD')">Girls Doubles (GD)</button>
+            <button class="tab" onclick="showEvent('XD')">Mixed Doubles (XD)</button>
+        </div>
+
+        <div id="BS" class="event-container active">
+            <div class="schools-setup">
+                <h2>Boys Singles - Team Setup</h2>
+                <div class="schools-grid" id="BS-schools"></div>
+                <button class="generate-btn" onclick="generateBracket('BS')">Generate BS Bracket</button>
+                <button class="reset-btn" onclick="resetEvent('BS')">Reset BS</button>
+            </div>
+            <div class="bracket-wrapper" id="BS-bracket" style="display: none;"></div>
+        </div>
+
+        <div id="GS" class="event-container">
+            <div class="schools-setup">
+                <h2>Girls Singles - Team Setup</h2>
+                <div class="schools-grid" id="GS-schools"></div>
+                <button class="generate-btn" onclick="generateBracket('GS')">Generate GS Bracket</button>
+                <button class="reset-btn" onclick="resetEvent('GS')">Reset GS</button>
+            </div>
+            <div class="bracket-wrapper" id="GS-bracket" style="display: none;"></div>
+        </div>
+
+        <div id="BD" class="event-container">
+            <div class="schools-setup">
+                <h2>Boys Doubles - Team Setup</h2>
+                <div class="schools-grid" id="BD-schools"></div>
+                <button class="generate-btn" onclick="generateBracket('BD')">Generate BD Bracket</button>
+                <button class="reset-btn" onclick="resetEvent('BD')">Reset BD</button>
+            </div>
+            <div class="bracket-wrapper" id="BD-bracket" style="display: none;"></div>
+        </div>
+
+        <div id="GD" class="event-container">
+            <div class="schools-setup">
+                <h2>Girls Doubles - Team Setup</h2>
+                <div class="schools-grid" id="GD-schools"></div>
+                <button class="generate-btn" onclick="generateBracket('GD')">Generate GD Bracket</button>
+                <button class="reset-btn" onclick="resetEvent('GD')">Reset GD</button>
+            </div>
+            <div class="bracket-wrapper" id="GD-bracket" style="display: none;"></div>
+        </div>
+
+        <div id="XD" class="event-container">
+            <div class="schools-setup">
+                <h2>Mixed Doubles - Team Setup</h2>
+                <div class="schools-grid" id="XD-schools"></div>
+                <button class="generate-btn" onclick="generateBracket('XD')">Generate XD Bracket</button>
+                <button class="reset-btn" onclick="resetEvent('XD')">Reset XD</button>
+            </div>
+            <div class="bracket-wrapper" id="XD-bracket" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const schoolNames = ['School A', 'School B', 'School C', 'School D', 'School E', 'School F', 'School G', 'School H'];
+        const events = ['BS', 'GS', 'BD', 'GD', 'XD'];
+        const eventData = {};
+
+        // Initialize event data
+        events.forEach(event => {
+            eventData[event] = {
+                teams: [],
+                bracket: null
+            };
+        });
+
+        // Initialize school inputs for each event
+        function initializeSchoolInputs() {
+            events.forEach(event => {
+                const container = document.getElementById(`${event}-schools`);
+                container.innerHTML = '';
+                
+                schoolNames.forEach((school, index) => {
+                    const isDoubles = event.includes('D');
+                    const eventName = getEventFullName(event);
+                    
+                    for (let team = 1; team <= 2; team++) {
+                        const div = document.createElement('div');
+                        div.className = 'school-input';
+                        div.innerHTML = `
+                            <label>${school} - Team ${team}</label>
+                            ${isDoubles ? `
+                                <input type="text" placeholder="Player 1 Name" id="${event}-${index}-${team}-p1">
+                                <input type="text" placeholder="Player 2 Name" id="${event}-${index}-${team}-p2">
+                            ` : `
+                                <input type="text" placeholder="Player Name" id="${event}-${index}-${team}-p1">
+                            `}
+                        `;
+                        container.appendChild(div);
+                    }
+                });
+            });
+        }
+
+        function getEventFullName(event) {
+            const names = {
+                'BS': 'Boys Singles',
+                'GS': 'Girls Singles',
+                'BD': 'Boys Doubles',
+                'GD': 'Girls Doubles',
+                'XD': 'Mixed Doubles'
+            };
+            return names[event];
+        }
+
+        function showEvent(event) {
+            // Update tabs
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target?.classList.add('active') || 
+            document.querySelector(`.tab:nth-child(${events.indexOf(event) + 1})`).classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.event-container').forEach(container => {
+                container.classList.remove('active');
+            });
+            document.getElementById(event).classList.add('active');
+        }
+
+        function generateBracket(event) {
+            const teams = [];
+            const isDoubles = event.includes('D');
+            
+            // Collect team data
+            for (let school = 0; school < 8; school++) {
+                for (let team = 1; team <= 2; team++) {
+                    const p1Input = document.getElementById(`${event}-${school}-${team}-p1`);
+                    const p2Input = isDoubles ? document.getElementById(`${event}-${school}-${team}-p2`) : null;
+                    
+                    if (p1Input && p1Input.value.trim()) {
+                        const teamData = {
+                            school: schoolNames[school],
+                            teamNumber: team,
+                            players: isDoubles && p2Input ? 
+                                `${p1Input.value.trim()} & ${p2Input.value.trim()}` : 
+                                p1Input.value.trim()
+                        };
+                        teams.push(teamData);
+                    }
+                }
+            }
+
+            if (teams.length < 16) {
+                alert(`Please enter all 16 teams for ${getEventFullName(event)}`);
+                return;
+            }
+
+            // Shuffle teams for random draw
+            const shuffled = [...teams].sort(() => Math.random() - 0.5);
+            eventData[event].teams = shuffled;
+            
+            // Generate and display bracket
+            displayBracket(event);
+            document.querySelector(`#${event} .schools-setup`).style.display = 'none';
+            document.getElementById(`${event}-bracket`).style.display = 'block';
+        }
+
+        function displayBracket(event) {
+            const bracketContainer = document.getElementById(`${event}-bracket`);
+            const teams = eventData[event].teams;
+            
+            bracketContainer.innerHTML = `
+                <div class="event-legend">
+                    <h3>${getEventFullName(event)} - Knockout Tournament</h3>
+                    <p>Click on a team to select them as the winner of their match</p>
+                </div>
+                <div class="bracket" id="${event}-bracket-display"></div>
+            `;
+
+            const bracket = document.getElementById(`${event}-bracket-display`);
+            
+            // Create rounds
+            const rounds = [
+                { title: 'Round of 16', matches: 8 },
+                { title: 'Quarter-Finals', matches: 4 },
+                { title: 'Semi-Finals', matches: 2 },
+                { title: 'Final', matches: 1 }
+            ];
+
+            eventData[event].bracket = {
+                rounds: rounds.map(() => []),
+                currentRound: 0
+            };
+
+            // Initialize first round with teams
+            for (let i = 0; i < 8; i++) {
+                eventData[event].bracket.rounds[0].push({
+                    team1: teams[i * 2],
+                    team2: teams[i * 2 + 1],
+                    winner: null,
+                    scores: null
+                });
+            }
+
+            renderBracket(event);
+        }
+
+        function renderBracket(event) {
+            const bracket = document.getElementById(`${event}-bracket-display`);
+            const bracketData = eventData[event].bracket;
+            bracket.innerHTML = '';
+
+            bracketData.rounds.forEach((round, roundIndex) => {
+                const roundDiv = document.createElement('div');
+                roundDiv.className = 'round';
+                
+                const roundTitle = document.createElement('div');
+                roundTitle.className = 'round-title';
+                roundTitle.textContent = ['Round of 16', 'Quarter-Finals', 'Semi-Finals', 'Final'][roundIndex];
+                roundDiv.appendChild(roundTitle);
+
+                round.forEach((match, matchIndex) => {
+                    const matchDiv = document.createElement('div');
+                    matchDiv.className = 'match';
+                    if (match.winner) matchDiv.classList.add('winner-decided');
+
+                    if (match.team1 && match.team2) {
+                        const team1Div = createTeamDiv(match.team1, match.winner === match.team1);
+                        const team2Div = createTeamDiv(match.team2, match.winner === match.team2);
+                        
+                        team1Div.onclick = () => selectWinner(event, roundIndex, matchIndex, match.team1);
+                        team2Div.onclick = () => selectWinner(event, roundIndex, matchIndex, match.team2);
+
+                        const vsDiv = document.createElement('div');
+                        vsDiv.className = 'vs';
+                        vsDiv.textContent = 'VS';
+
+                        matchDiv.appendChild(team1Div);
+                        matchDiv.appendChild(vsDiv);
+                        matchDiv.appendChild(team2Div);
+
+                        // Add score section
+                        const scoreSection = createScoreSection(event, roundIndex, matchIndex, match);
+                        matchDiv.appendChild(scoreSection);
+                    } else {
+                        matchDiv.innerHTML = '<div class="team"><span class="team-name">Awaiting teams...</span></div>';
+                    }
+
+                    roundDiv.appendChild(matchDiv);
+                });
+
+                bracket.appendChild(roundDiv);
+            });
+
+            // Show winner if tournament is complete
+            const finalMatch = bracketData.rounds[3][0];
+            if (finalMatch && finalMatch.winner) {
+                const winnerDiv = document.createElement('div');
+                winnerDiv.className = 'round';
+                winnerDiv.innerHTML = `
+                    <div class="round-title">🏆 CHAMPION 🏆</div>
+                    <div class="match" style="background: linear-gradient(135deg, #ffd700, #ffed4e); border: 3px solid #ffd700;">
+                        ${createTeamDiv(finalMatch.winner, true).outerHTML}
+                    </div>
+                    <svg class="winner-medal" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="45" fill="#ffd700" stroke="#ff6b6b" stroke-width="5"/>
+                        <text x="50" y="60" text-anchor="middle" font-size="30" font-weight="bold" fill="#fff">1st</text>
+                    </svg>
+                `;
+                bracket.appendChild(winnerDiv);
+            }
+        }
+
+        function createTeamDiv(team, isWinner) {
+            const div = document.createElement('div');
+            div.className = 'team' + (isWinner ? ' winner' : '');
+            div.innerHTML = `
+                <div>
+                    <div class="team-name">${team.school} - Team ${team.teamNumber}</div>
+                    <div class="team-players">${team.players}</div>
+                </div>
+                ${isWinner ? '🏆' : ''}
+            `;
+            return div;
+        }
+
+        function createScoreSection(event, roundIndex, matchIndex, match) {
+            const scoreSection = document.createElement('div');
+            scoreSection.className = 'score-section';
+            
+            const isBestOfThree = roundIndex >= 2; // Semi-finals and finals
+            const numGames = isBestOfThree ? 3 : 1;
+            
+            if (!match.scores || match.scores.editing) {
+                // Show input form
+                const scoreInputs = document.createElement('div');
+                
+                for (let game = 0; game < numGames; game++) {
+                    const gameDiv = document.createElement('div');
+                    gameDiv.className = 'score-inputs';
+                    
+                    const label = document.createElement('span');
+                    label.className = 'game-label';
+                    label.textContent = isBestOfThree ? `Game ${game + 1}:` : 'Score:';
+                    
+                    const input1 = document.createElement('input');
+                    input1.type = 'number';
+                    input1.className = 'score-input';
+                    input1.placeholder = '0';
+                    input1.min = '0';
+                    input1.max = '30';
+                    input1.id = `${event}-${roundIndex}-${matchIndex}-${game}-t1`;
+                    if (match.scores && match.scores.games[game]) {
+                        input1.value = match.scores.games[game].team1;
+                    }
+                    
+                    const dash = document.createElement('span');
+                    dash.textContent = ' - ';
+                    
+                    const input2 = document.createElement('input');
+                    input2.type = 'number';
+                    input2.className = 'score-input';
+                    input2.placeholder = '0';
+                    input2.min = '0';
+                    input2.max = '30';
+                    input2.id = `${event}-${roundIndex}-${matchIndex}-${game}-t2`;
+                    if (match.scores && match.scores.games[game]) {
+                        input2.value = match.scores.games[game].team2;
+                    }
+                    
+                    gameDiv.appendChild(label);
+                    gameDiv.appendChild(input1);
+                    gameDiv.appendChild(dash);
+                    gameDiv.appendChild(input2);
+                    
+                    scoreInputs.appendChild(gameDiv);
+                }
+                
+                const saveBtn = document.createElement('button');
+                saveBtn.className = 'save-score-btn';
+                saveBtn.textContent = 'Save Scores';
+                saveBtn.onclick = () => saveScores(event, roundIndex, matchIndex, numGames);
+                
+                scoreSection.appendChild(scoreInputs);
+                scoreSection.appendChild(saveBtn);
+            } else {
+                // Show saved scores
+                const scoreDisplay = document.createElement('div');
+                scoreDisplay.className = 'score-display';
+                
+                let team1Wins = 0;
+                let team2Wins = 0;
+                
+                match.scores.games.forEach((game, index) => {
+                    if (game) {
+                        const gameScore = document.createElement('span');
+                        gameScore.className = 'game-score';
+                        
+                        if (game.team1 > game.team2) {
+                            gameScore.classList.add('won');
+                            team1Wins++;
+                        } else if (game.team2 > game.team1) {
+                            team2Wins++;
+                        }
+                        
+                        gameScore.textContent = `${game.team1}-${game.team2}`;
+                        scoreDisplay.appendChild(gameScore);
+                    }
+                });
+                
+                const editBtn = document.createElement('button');
+                editBtn.className = 'edit-score-btn';
+                editBtn.textContent = 'Edit';
+                editBtn.onclick = () => editScores(event, roundIndex, matchIndex);
+                
+                scoreSection.appendChild(scoreDisplay);
+                scoreSection.appendChild(editBtn);
+            }
+            
+            return scoreSection;
+        }
+
+        function saveScores(event, roundIndex, matchIndex, numGames) {
+            const match = eventData[event].bracket.rounds[roundIndex][matchIndex];
+            const scores = { games: [], editing: false };
+            
+            let team1Wins = 0;
+            let team2Wins = 0;
+            
+            for (let game = 0; game < numGames; game++) {
+                const score1 = parseInt(document.getElementById(`${event}-${roundIndex}-${matchIndex}-${game}-t1`).value) || 0;
+                const score2 = parseInt(document.getElementById(`${event}-${roundIndex}-${matchIndex}-${game}-t2`).value) || 0;
+                
+                if (score1 > 0 || score2 > 0) {
+                    scores.games.push({ team1: score1, team2: score2 });
+                    
+                    if (score1 > score2) team1Wins++;
+                    else if (score2 > score1) team2Wins++;
+                }
+            }
+            
+            if (scores.games.length === 0) {
+                alert('Please enter at least one game score');
+                return;
+            }
+            
+            // Validate scores (must reach 21, win by 2, max 30)
+            for (let game of scores.games) {
+                if (Math.max(game.team1, game.team2) < 21) {
+                    alert('Game must be won with at least 21 points');
+                    return;
+                }
+                if (Math.max(game.team1, game.team2) >= 21 && Math.max(game.team1, game.team2) <= 29) {
+                    if (Math.abs(game.team1 - game.team2) < 2) {
+                        alert('Must win by 2 points (unless 30-29)');
+                        return;
+                    }
+                }
+            }
+            
+            match.scores = scores;
+            
+            // Auto-select winner based on games won
+            if (team1Wins > team2Wins) {
+                selectWinner(event, roundIndex, matchIndex, match.team1, false);
+            } else if (team2Wins > team1Wins) {
+                selectWinner(event, roundIndex, matchIndex, match.team2, false);
+            }
+            
+            renderBracket(event);
+        }
+
+        function editScores(event, roundIndex, matchIndex) {
+            const match = eventData[event].bracket.rounds[roundIndex][matchIndex];
+            if (match.scores) {
+                match.scores.editing = true;
+            }
+            renderBracket(event);
+        }
+
+        function selectWinner(event, roundIndex, matchIndex, winner, checkScores = true) {
+            const bracketData = eventData[event].bracket;
+            const match = bracketData.rounds[roundIndex][matchIndex];
+            
+            if (!match.team1 || !match.team2) return;
+            
+            // For semifinals and finals, check if scores are entered
+            if (checkScores && roundIndex >= 2 && !match.scores) {
+                alert('Please enter match scores before selecting a winner');
+                return;
+            }
+            
+            match.winner = winner;
+
+            // Advance winner to next round
+            if (roundIndex < 3) {
+                const nextRoundIndex = roundIndex + 1;
+                const nextMatchIndex = Math.floor(matchIndex / 2);
+                
+                if (!bracketData.rounds[nextRoundIndex][nextMatchIndex]) {
+                    bracketData.rounds[nextRoundIndex][nextMatchIndex] = {
+                        team1: null,
+                        team2: null,
+                        winner: null,
+                        scores: null
+                    };
+                }
+
+                if (matchIndex % 2 === 0) {
+                    bracketData.rounds[nextRoundIndex][nextMatchIndex].team1 = winner;
+                } else {
+                    bracketData.rounds[nextRoundIndex][nextMatchIndex].team2 = winner;
+                }
+            }
+
+            renderBracket(event);
+        }
+
+        function resetEvent(event) {
+            eventData[event] = {
+                teams: [],
+                bracket: null
+            };
+            document.querySelector(`#${event} .schools-setup`).style.display = 'block';
+            document.getElementById(`${event}-bracket`).style.display = 'none';
+            
+            // Clear inputs
+            const inputs = document.querySelectorAll(`#${event}-schools input`);
+            inputs.forEach(input => input.value = '');
+        }
+
+        // Initialize on load
+        initializeSchoolInputs();
+    </script>
+</body>
+</html>
