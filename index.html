@@ -87,7 +87,7 @@
         const NUM_SCHOOLS = 16;
         const TEAMS_PER_SCHOOL = 2;
         const TOTAL_TEAMS_PER_EVENT = NUM_SCHOOLS * TEAMS_PER_SCHOOL; // 32
-        const LOCAL_STORAGE_KEY = 'badmintonTournamentData_v3.2'; // Updated version
+        const LOCAL_STORAGE_KEY = 'badmintonTournamentData_v3.3'; // Updated version for new shuffle logic
 
         let tournamentData = {};
         let currentEventId = 'BS'; // Default active event
@@ -330,12 +330,34 @@
         }
 
         // --- Shuffle Feature ---
+        // Helper function to get school number and team rank (1 or 2) from team ID
+        function getSchoolAndTeamRank(teamId) {
+            const match = teamId.match(/_s(\d+)_t(\d+)$/);
+            if (match) {
+                return {
+                    schoolNum: parseInt(match[1]),
+                    teamRank: parseInt(match[2])
+                };
+            }
+            console.error("Could not parse school/team rank from ID:", teamId);
+            return { schoolNum: -1, teamRank: -1 }; // Should ideally not happen
+        }
+
+        // Standard Fisher-Yates shuffle
+        function fyShuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
         function shuffleCurrentEventTeams() {
             const eventData = tournamentData[currentEventId];
             if (!eventData) { alert("No event selected or data not found."); return; }
 
             let actionTakenInEvent = false;
-            const drawsToCheck = [eventData.mainDraw, eventData.consolationDraw, eventData.waterfallConsolationDraw]; // Added WCD
+            const drawsToCheck = [eventData.mainDraw, eventData.consolationDraw, eventData.waterfallConsolationDraw];
 
             for (const draw of drawsToCheck) {
                 if (draw && draw.rounds) {
@@ -354,13 +376,92 @@
             }
 
             if (actionTakenInEvent) { alert("Cannot shuffle: Matches played or scores entered. Reset event to shuffle."); return; }
-            if (!confirm(`Shuffle entries for ${EVENT_CODES[currentEventId]}? This reorders seeding and clears unplayed matches.`)) return;
+            if (!confirm(`Shuffle entries for ${EVENT_CODES[currentEventId]}? This reorders seeding and clears unplayed matches, applying new placement rules.`)) return;
 
-            const teams = eventData.teams;
-            for (let i = teams.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [teams[i], teams[j]] = [teams[j], teams[i]];
+            const originalTeams = [...eventData.teams]; // Work with a copy initially
+            const team1sList = [];
+            const team2sList = [];
+
+            originalTeams.forEach(team => {
+                const { teamRank } = getSchoolAndTeamRank(team.id);
+                if (teamRank === 1) {
+                    team1sList.push(team);
+                } else if (teamRank === 2) {
+                    team2sList.push(team);
+                }
+            });
+
+            fyShuffle(team1sList);
+            fyShuffle(team2sList);
+
+            const finalArrangement = new Array(TOTAL_TEAMS_PER_EVENT);
+            const HALF_SIZE = TOTAL_TEAMS_PER_EVENT / 2; // 16
+            const TEAMS_OF_TYPE_PER_HALF = NUM_SCHOOLS / 2; // 8
+
+            let topHalfSlots = Array.from({ length: HALF_SIZE }, (_, i) => i); // 0-15
+            let bottomHalfSlots = Array.from({ length: HALF_SIZE }, (_, i) => i + HALF_SIZE); // 16-31
+            fyShuffle(topHalfSlots);
+            fyShuffle(bottomHalfSlots);
+
+            const schoolTeam1Location = {}; // { schoolNum: 'top' | 'bottom' }
+
+            // Place Team 1s: 8 in top half, 8 in bottom half
+            for (let i = 0; i < TEAMS_OF_TYPE_PER_HALF; i++) {
+                const team1_top = team1sList[i];
+                const slot_top = topHalfSlots.pop();
+                finalArrangement[slot_top] = team1_top;
+                const { schoolNum: schoolNum_top } = getSchoolAndTeamRank(team1_top.id);
+                schoolTeam1Location[schoolNum_top] = 'top';
             }
+            for (let i = 0; i < TEAMS_OF_TYPE_PER_HALF; i++) {
+                const team1_bottom = team1sList[TEAMS_OF_TYPE_PER_HALF + i];
+                const slot_bottom = bottomHalfSlots.pop();
+                finalArrangement[slot_bottom] = team1_bottom;
+                const { schoolNum: schoolNum_bottom } = getSchoolAndTeamRank(team1_bottom.id);
+                schoolTeam1Location[schoolNum_bottom] = 'bottom';
+            }
+            
+            // Place Team 2s based on their Team 1's location
+            team2sList.forEach(team2 => {
+                const { schoolNum } = getSchoolAndTeamRank(team2.id);
+                if (schoolTeam1Location[schoolNum] === 'top') { // Team 1 is in top, so Team 2 goes to bottom
+                    if (bottomHalfSlots.length === 0) {
+                        console.error("Error: No bottom half slots left for Team 2. This shouldn't happen.");
+                        // Fallback: try to place anywhere, though logic should prevent this
+                        const fallbackSlot = finalArrangement.indexOf(undefined);
+                        if (fallbackSlot !== -1) finalArrangement[fallbackSlot] = team2;
+                        return;
+                    }
+                    const slot = bottomHalfSlots.pop();
+                    finalArrangement[slot] = team2;
+                } else { // Team 1 is in bottom, so Team 2 goes to top
+                     if (topHalfSlots.length === 0) {
+                        console.error("Error: No top half slots left for Team 2. This shouldn't happen.");
+                        const fallbackSlot = finalArrangement.indexOf(undefined);
+                        if (fallbackSlot !== -1) finalArrangement[fallbackSlot] = team2;
+                        return;
+                    }
+                    const slot = topHalfSlots.pop();
+                    finalArrangement[slot] = team2;
+                }
+            });
+            
+            // Verify the arrangement (optional debug)
+            // let topT1=0, topT2=0, botT1=0, botT2=0;
+            // finalArrangement.forEach((team, idx) => {
+            //     if (!team) { console.error("UNDEFINED TEAM at index", idx); return; }
+            //     const {teamRank} = getSchoolAndTeamRank(team.id);
+            //     if (idx < HALF_SIZE) { // Top half
+            //         if (teamRank === 1) topT1++; else topT2++;
+            //     } else { // Bottom half
+            //         if (teamRank === 1) botT1++; else botT2++;
+            //     }
+            // });
+            // console.log(`Top: T1=${topT1}, T2=${topT2}. Bottom: T1=${botT1}, T2=${botT2}`);
+            // For N=16 schools: should be Top: T1=8, T2=8. Bottom: T1=8, T2=8.
+
+            eventData.teams = finalArrangement;
+
 
             function resetDrawMatchAssignments(draw) {
                 if (draw && draw.rounds) {
@@ -377,17 +478,18 @@
 
             resetDrawMatchAssignments(eventData.mainDraw);
             resetDrawMatchAssignments(eventData.consolationDraw);
-            resetDrawMatchAssignments(eventData.waterfallConsolationDraw); // Added WCD
+            resetDrawMatchAssignments(eventData.waterfallConsolationDraw);
 
             saveData();
             renderCurrentEvent();
-            alert(`${EVENT_CODES[currentEventId]} entries shuffled. Draws updated.`);
+            alert(`${EVENT_CODES[currentEventId]} entries shuffled according to new rules. Draws updated.`);
         }
+
 
         // --- Draw Generation Logic ---
         function createMatchObject(id, round, matchInRound, team1Source = null, team2Source = null, 
-                                 isSF = false, isFinal = false, customLabel = "",
-                                 loserFeedsToNextBracketMatchId = null, loserFeedsToNextBracketSlotNumber = null, nextBracketType = null) {
+                                   isSF = false, isFinal = false, customLabel = "",
+                                   loserFeedsToNextBracketMatchId = null, loserFeedsToNextBracketSlotNumber = null, nextBracketType = null) {
             return {
                 id, round, matchInRound, customLabel,
                 team1Id: null, team2Id: null,
@@ -956,7 +1058,7 @@
             drawData.rounds.forEach(round => {
                 round.forEach(match => {
                     if (match.isComplete && !match.isBye) return; 
-                                                    
+                                                
                     if (!match.team1Id || match.team1Id === 'TBD') { 
                         const p1Id = getPlayerIdFromSource(eventId, match.team1Source); 
                         if (p1Id) match.team1Id = p1Id;
