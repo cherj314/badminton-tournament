@@ -25,6 +25,12 @@
         #tournament-controls button#export-data:hover { background-color: #0069d9; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         #tournament-controls button#import-data { background-color: #17a2b8; } /* Teal */
         #tournament-controls button#import-data:hover { background-color: #138496; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        /* New CSV Buttons */
+        #tournament-controls button#export-teams-csv { background-color: #6f42c1; } /* Purple */
+        #tournament-controls button#export-teams-csv:hover { background-color: #5a2dac; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        #tournament-controls button#import-teams-csv { background-color: #fd7e14; } /* Orange darker */
+        #tournament-controls button#import-teams-csv:hover { background-color: #e46d0b; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
 
         .event-container { display: none; margin-top: 20px; padding: 20px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .event-container.active { display: block; }
@@ -69,9 +75,14 @@
         <button id="save-all-teams">Save All Team Names</button>
         <button id="shuffle-current-event-teams">Shuffle Current Event Entries</button>
         <button id="reset-tournament">Reset Tournament Data</button>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 10px 0;">
         <button id="export-data">Export Tournament Data (JSON)</button>
         <button id="import-data">Import Tournament Data (JSON)</button>
         <input type="file" id="import-file-input" accept=".json" style="display: none;">
+        <hr style="border: none; border-top: 1px solid #eee; margin: 10px 0;">
+        <button id="export-teams-csv">Export Team Names (CSV)</button>
+        <button id="import-teams-csv">Import Team Names (CSV)</button>
+        <input type="file" id="import-teams-csv-input" accept=".csv" style="display: none;">
         <p id="loading-status" style="display:none;">Loading data...</p>
     </div>
 
@@ -87,7 +98,7 @@
         const NUM_SCHOOLS = 16;
         const TEAMS_PER_SCHOOL = 2;
         const TOTAL_TEAMS_PER_EVENT = NUM_SCHOOLS * TEAMS_PER_SCHOOL; // 32
-        const LOCAL_STORAGE_KEY = 'badmintonTournamentData_v3.3'; // Updated version for new shuffle logic
+        const LOCAL_STORAGE_KEY = 'badmintonTournamentData_v3.4'; // Updated version for new CSV feature
 
         let tournamentData = {};
         let currentEventId = 'BS'; // Default active event
@@ -100,11 +111,20 @@
             document.getElementById('reset-tournament').addEventListener('click', resetTournamentData);
             document.getElementById('save-all-teams').addEventListener('click', saveAllTeamNamesFromUI);
             document.getElementById('shuffle-current-event-teams').addEventListener('click', shuffleCurrentEventTeams);
+            
+            // JSON Import/Export
             document.getElementById('export-data').addEventListener('click', exportTournamentData);
             document.getElementById('import-data').addEventListener('click', () => {
                 document.getElementById('import-file-input').click();
             });
             document.getElementById('import-file-input').addEventListener('change', handleTournamentDataUpload);
+
+            // CSV Team Data Import/Export
+            document.getElementById('export-teams-csv').addEventListener('click', exportTeamsToCSV);
+            document.getElementById('import-teams-csv').addEventListener('click', () => {
+                document.getElementById('import-teams-csv-input').click();
+            });
+            document.getElementById('import-teams-csv-input').addEventListener('change', handleTeamDataCSVUpload);
         }
 
         function saveData() {
@@ -130,6 +150,15 @@
                             if (!tournamentData[eventId].teams || !Array.isArray(tournamentData[eventId].teams) || tournamentData[eventId].teams.length !== TOTAL_TEAMS_PER_EVENT) {
                                 tournamentData[eventId].teams = createInitialTeams(eventId);
                             }
+                            // Ensure team objects have necessary properties (originalPlayerSlot might be missing from older data)
+                            tournamentData[eventId].teams.forEach((team, index) => {
+                                if (team.originalPlayerSlot === undefined) {
+                                    team.originalPlayerSlot = index; // Assuming initial load order was their original slot.
+                                }
+                                team.mainDrawLosses = team.mainDrawLosses || 0;
+                                team.consolationLosses = team.consolationLosses || 0;
+                            });
+
                             const mdRounds = tournamentData[eventId].mainDraw && tournamentData[eventId].mainDraw.rounds;
                             if (!mdRounds || !Array.isArray(mdRounds) || mdRounds.length < 6) { // 5 rounds + 1 overall final
                                 tournamentData[eventId].mainDraw = generateMainDrawStructure(eventId);
@@ -138,7 +167,6 @@
                             if (!cdRounds || !Array.isArray(cdRounds) || cdRounds.length < 8) { // 7 rounds + 1 third place
                                 tournamentData[eventId].consolationDraw = generateConsolationDrawStructure(eventId);
                             }
-                            // Ensure waterfall consolation draw structure
                             const wfcdRounds = tournamentData[eventId].waterfallConsolationDraw && tournamentData[eventId].waterfallConsolationDraw.rounds;
                             if (!wfcdRounds || !Array.isArray(wfcdRounds) || wfcdRounds.length < 3) { // 2 rounds + 1 final for WCD
                                 tournamentData[eventId].waterfallConsolationDraw = generateWaterfallConsolationDrawStructure(eventId);
@@ -186,7 +214,6 @@
                         originalPlayerSlot: teams.length, 
                         mainDrawLosses: 0,
                         consolationLosses: 0
-                        // waterfallConsolationLosses: 0 // Not strictly needed for current logic
                     });
                 }
             }
@@ -202,7 +229,7 @@
             }
         }
 
-        // --- Import/Export Feature ---
+        // --- Full Tournament Import/Export Feature (JSON) ---
         function exportTournamentData() {
             try {
                 const jsonData = JSON.stringify(tournamentData, null, 2);
@@ -211,15 +238,15 @@
                 const a = document.createElement('a');
                 a.href = url;
                 const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
-                a.download = `badminton_tournament_data_${timestamp}.json`;
+                a.download = `badminton_tournament_data_FULL_${timestamp}.json`;
                 document.body.appendChild(a);
                 a.click();
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
-                alert("Tournament data exported successfully!");
+                alert("Full tournament data exported successfully!");
             } catch (e) {
-                console.error("Error exporting data:", e);
-                alert("Could not export data. See console for details.");
+                console.error("Error exporting full data:", e);
+                alert("Could not export full data. See console for details.");
             }
         }
 
@@ -227,7 +254,7 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            if (!confirm("Importing data will overwrite any existing tournament data. Are you sure you want to proceed?")) {
+            if (!confirm("Importing FULL tournament data will overwrite ALL existing tournament data. Are you sure you want to proceed?")) {
                 event.target.value = null; return;
             }
 
@@ -240,22 +267,28 @@
 
                     Object.keys(EVENT_CODES).forEach(appEventId => {
                         if (importedRawData[appEventId]) {
-                            const eventData = JSON.parse(JSON.stringify(importedRawData[appEventId]));
+                            const eventData = JSON.parse(JSON.stringify(importedRawData[appEventId])); // Deep copy
 
+                            // Validate teams
                             if (!eventData.teams || !Array.isArray(eventData.teams) || eventData.teams.length !== TOTAL_TEAMS_PER_EVENT) {
                                 console.warn(`Teams for event ${appEventId} are missing or malformed. Re-initializing.`);
                                 eventData.teams = createInitialTeams(appEventId);
                             } else {
                                 eventData.teams.forEach((team, index) => {
                                     if (typeof team.id !== 'string' || typeof team.name !== 'string') {
-                                        console.warn(`Team ${index} in event ${appEventId} malformed. Re-initializing all teams.`);
-                                        eventData.teams = createInitialTeams(appEventId); return;
+                                        console.warn(`Team ${index} in event ${appEventId} malformed. Re-initializing all teams for this event.`);
+                                        eventData.teams = createInitialTeams(appEventId); return; // Exit forEach for this event's teams
                                     }
                                     team.mainDrawLosses = team.mainDrawLosses || 0;
                                     team.consolationLosses = team.consolationLosses || 0;
+                                    if (team.originalPlayerSlot === undefined) { // Add originalPlayerSlot if missing
+                                        const originalTeam = createInitialTeams(appEventId).find(it => it.id === team.id);
+                                        team.originalPlayerSlot = originalTeam ? originalTeam.originalPlayerSlot : index;
+                                    }
                                 });
                             }
 
+                            // Validate draws
                             const mdRounds = eventData.mainDraw && eventData.mainDraw.rounds;
                             if (!mdRounds || !Array.isArray(mdRounds) || mdRounds.length < 6) {
                                 console.warn(`Main draw for ${appEventId} malformed. Re-generating.`);
@@ -274,6 +307,7 @@
                                 eventData.waterfallConsolationDraw = generateWaterfallConsolationDrawStructure(appEventId);
                             }
                             
+                            // Validate matches within draws
                             [eventData.mainDraw, eventData.consolationDraw, eventData.waterfallConsolationDraw].forEach(draw => {
                                 if (draw && draw.rounds) {
                                     draw.rounds.forEach(round => {
@@ -301,7 +335,7 @@
                     if (importSuccessful) {
                         tournamentData = validatedData;
                         saveData();
-                        alert("Tournament data imported successfully! The page will now refresh.");
+                        alert("Full tournament data imported successfully! The page will now be re-rendered.");
                         
                         const statusEl = document.getElementById('loading-status');
                         if(statusEl) statusEl.style.display = 'block';
@@ -312,7 +346,7 @@
                         if (!EVENT_CODES[currentEventId] || !tournamentData[currentEventId]) {
                             currentEventId = firstEventId;
                         }
-                        switchEventTab(currentEventId);
+                        switchEventTab(currentEventId); // This will call renderCurrentEvent
 
                         if(statusEl) statusEl.style.display = 'none';
                     }
@@ -329,8 +363,141 @@
             reader.readAsText(file);
         }
 
+        // --- Team Data Import/Export (CSV) ---
+        function exportTeamsToCSV() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "EventCode,EventName,TeamID,TeamOriginalSlot,TeamName\r\n"; // Headers
+
+            Object.keys(tournamentData).forEach(eventId => {
+                const eventData = tournamentData[eventId];
+                if (eventData && eventData.teams) {
+                    eventData.teams.forEach(team => {
+                        const row = [
+                            `"${eventId}"`,
+                            `"${EVENT_CODES[eventId]}"`,
+                            `"${team.id}"`,
+                            team.originalPlayerSlot, // This is the original index, helpful for reference
+                            `"${team.name.replace(/"/g, '""')}"` // Escape double quotes in team name
+                        ].join(",");
+                        csvContent += row + "\r\n";
+                    });
+                }
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, "-");
+            link.setAttribute("download", `badminton_team_names_${timestamp}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            alert("Team names CSV exported!");
+        }
+
+        function handleTeamDataCSVUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!confirm("Importing team names from CSV will overwrite existing team names. Are you sure? This will NOT change tournament structure or scores.")) {
+                event.target.value = null; // Clear the file input
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const csvText = e.target.result;
+                    const lines = csvText.split(/\r\n|\n/);
+                    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '')); // Trim and remove quotes from headers
+
+                    const expectedHeaders = ["EventCode", "TeamID", "TeamName"];
+                    const headerMap = {};
+                    headers.forEach((h, i) => {
+                        if (expectedHeaders.includes(h)) {
+                            headerMap[h] = i;
+                        }
+                    });
+
+                    if (!expectedHeaders.every(eh => eh in headerMap)) {
+                        alert(`CSV Import Error: Missing one or more required headers. Expected: ${expectedHeaders.join(", ")}. Found: ${headers.join(", ")}`);
+                        return;
+                    }
+                    
+                    let teamsUpdatedCount = 0;
+                    let errors = [];
+
+                    for (let i = 1; i < lines.length; i++) {
+                        if (lines[i].trim() === "") continue; // Skip empty lines
+
+                        // Basic CSV parsing (split by comma, handle quoted fields)
+                        const data = [];
+                        let currentField = '';
+                        let inQuotes = false;
+                        for (let char of lines[i]) {
+                            if (char === '"') {
+                                inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                                data.push(currentField.trim().replace(/^"|"$/g, ''));
+                                currentField = '';
+                            } else {
+                                currentField += char;
+                            }
+                        }
+                        data.push(currentField.trim().replace(/^"|"$/g, '')); // Add the last field
+
+                        const eventCode = data[headerMap["EventCode"]];
+                        const teamId = data[headerMap["TeamID"]];
+                        const teamName = data[headerMap["TeamName"]];
+
+                        if (!eventCode || !teamId || teamName === undefined || teamName === null) {
+                            errors.push(`Skipping line ${i+1}: Missing required data (EventCode, TeamID, or TeamName).`);
+                            continue;
+                        }
+
+                        if (tournamentData[eventCode] && tournamentData[eventCode].teams) {
+                            const teamToUpdate = tournamentData[eventCode].teams.find(t => t.id === teamId);
+                            if (teamToUpdate) {
+                                if (teamToUpdate.name !== teamName) {
+                                    teamToUpdate.name = teamName;
+                                    teamsUpdatedCount++;
+                                }
+                            } else {
+                                errors.push(`Warning on line ${i+1}: TeamID "${teamId}" not found in event "${eventCode}".`);
+                            }
+                        } else {
+                            errors.push(`Warning on line ${i+1}: EventCode "${eventCode}" not found in tournament data.`);
+                        }
+                    }
+
+                    if (teamsUpdatedCount > 0) {
+                        saveData();
+                        renderCurrentEvent(); // Re-render to show updated names
+                        alert(`${teamsUpdatedCount} team name(s) updated successfully from CSV.`);
+                    } else {
+                        alert("No team names were updated. Ensure EventCode, TeamID, and TeamName match existing data or provide new names.");
+                    }
+                    if (errors.length > 0) {
+                        console.warn("CSV Import Warnings/Errors:\n" + errors.join("\n"));
+                        alert("Some issues occurred during CSV import. Check the browser console (F12) for details.");
+                    }
+
+                } catch (err) {
+                    console.error("Error processing CSV file:", err);
+                    alert("Failed to import team names from CSV. File might be malformed or an unexpected error occurred.");
+                } finally {
+                    event.target.value = null; // Clear the file input
+                }
+            };
+            reader.onerror = function() {
+                alert("Error reading the CSV file.");
+                event.target.value = null; // Clear the file input
+            };
+            reader.readAsText(file);
+        }
+
+
         // --- Shuffle Feature ---
-        // Helper function to get school number and team rank (1 or 2) from team ID
         function getSchoolAndTeamRank(teamId) {
             const match = teamId.match(/_s(\d+)_t(\d+)$/);
             if (match) {
@@ -340,10 +507,9 @@
                 };
             }
             console.error("Could not parse school/team rank from ID:", teamId);
-            return { schoolNum: -1, teamRank: -1 }; // Should ideally not happen
+            return { schoolNum: -1, teamRank: -1 }; 
         }
 
-        // Standard Fisher-Yates shuffle
         function fyShuffle(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -378,7 +544,7 @@
             if (actionTakenInEvent) { alert("Cannot shuffle: Matches played or scores entered. Reset event to shuffle."); return; }
             if (!confirm(`Shuffle entries for ${EVENT_CODES[currentEventId]}? This reorders seeding and clears unplayed matches, applying new placement rules.`)) return;
 
-            const originalTeams = [...eventData.teams]; // Work with a copy initially
+            const originalTeams = [...eventData.teams]; 
             const team1sList = [];
             const team2sList = [];
 
@@ -405,7 +571,6 @@
 
             const schoolTeam1Location = {}; // { schoolNum: 'top' | 'bottom' }
 
-            // Place Team 1s: 8 in top half, 8 in bottom half
             for (let i = 0; i < TEAMS_OF_TYPE_PER_HALF; i++) {
                 const team1_top = team1sList[i];
                 const slot_top = topHalfSlots.pop();
@@ -421,21 +586,19 @@
                 schoolTeam1Location[schoolNum_bottom] = 'bottom';
             }
             
-            // Place Team 2s based on their Team 1's location
             team2sList.forEach(team2 => {
                 const { schoolNum } = getSchoolAndTeamRank(team2.id);
-                if (schoolTeam1Location[schoolNum] === 'top') { // Team 1 is in top, so Team 2 goes to bottom
+                if (schoolTeam1Location[schoolNum] === 'top') { 
                     if (bottomHalfSlots.length === 0) {
                         console.error("Error: No bottom half slots left for Team 2. This shouldn't happen.");
-                        // Fallback: try to place anywhere, though logic should prevent this
                         const fallbackSlot = finalArrangement.indexOf(undefined);
                         if (fallbackSlot !== -1) finalArrangement[fallbackSlot] = team2;
                         return;
                     }
                     const slot = bottomHalfSlots.pop();
                     finalArrangement[slot] = team2;
-                } else { // Team 1 is in bottom, so Team 2 goes to top
-                     if (topHalfSlots.length === 0) {
+                } else { 
+                    if (topHalfSlots.length === 0) {
                         console.error("Error: No top half slots left for Team 2. This shouldn't happen.");
                         const fallbackSlot = finalArrangement.indexOf(undefined);
                         if (fallbackSlot !== -1) finalArrangement[fallbackSlot] = team2;
@@ -446,20 +609,6 @@
                 }
             });
             
-            // Verify the arrangement (optional debug)
-            // let topT1=0, topT2=0, botT1=0, botT2=0;
-            // finalArrangement.forEach((team, idx) => {
-            //     if (!team) { console.error("UNDEFINED TEAM at index", idx); return; }
-            //     const {teamRank} = getSchoolAndTeamRank(team.id);
-            //     if (idx < HALF_SIZE) { // Top half
-            //         if (teamRank === 1) topT1++; else topT2++;
-            //     } else { // Bottom half
-            //         if (teamRank === 1) botT1++; else botT2++;
-            //     }
-            // });
-            // console.log(`Top: T1=${topT1}, T2=${topT2}. Bottom: T1=${botT1}, T2=${botT2}`);
-            // For N=16 schools: should be Top: T1=8, T2=8. Bottom: T1=8, T2=8.
-
             eventData.teams = finalArrangement;
 
 
@@ -488,8 +637,8 @@
 
         // --- Draw Generation Logic ---
         function createMatchObject(id, round, matchInRound, team1Source = null, team2Source = null, 
-                                   isSF = false, isFinal = false, customLabel = "",
-                                   loserFeedsToNextBracketMatchId = null, loserFeedsToNextBracketSlotNumber = null, nextBracketType = null) {
+                                    isSF = false, isFinal = false, customLabel = "",
+                                    loserFeedsToNextBracketMatchId = null, loserFeedsToNextBracketSlotNumber = null, nextBracketType = null) {
             return {
                 id, round, matchInRound, customLabel,
                 team1Id: null, team2Id: null,
@@ -781,16 +930,19 @@
             if (!container) return;
             container.innerHTML = '';
             const teams = tournamentData[eventId].teams;
-            teams.forEach((team, index) => {
+            teams.forEach((team, index) => { // Use index for display label 'Entry X'
                 const group = document.createElement('div');
                 group.classList.add('team-input-group');
                 const label = document.createElement('label');
-                label.setAttribute('for', `team-name-${eventId}-${index}`);
+                label.setAttribute('for', `team-name-${eventId}-${team.id}`); // Use team.id for uniqueness if list reorders
+                // To get the display entry number, we can use the team's originalPlayerSlot if it's guaranteed sorted here.
+                // Or, if teams array is rendered in its current (possibly shuffled) order, use index.
+                // Let's assume `teams` is rendered in its current draw order.
                 label.textContent = `Entry ${index + 1}:`; 
                 const input = document.createElement('input');
                 input.type = 'text';
-                input.id = `team-name-${eventId}-${index}`;
-                input.dataset.teamId = team.id;
+                input.id = `team-name-${eventId}-${team.id}`; // Use unique team.id
+                input.dataset.teamId = team.id; // Store the actual team id
                 input.value = team.name;
                 group.appendChild(label);
                 group.appendChild(input);
@@ -803,8 +955,8 @@
             Object.keys(EVENT_CODES).forEach(eventId => {
                 const event = tournamentData[eventId];
                 if (!event || !event.teams) return;
-                event.teams.forEach((team, index) => {
-                    const inputElement = document.getElementById(`team-name-${eventId}-${index}`);
+                event.teams.forEach(team => { // Iterate through teams, not just index
+                    const inputElement = document.getElementById(`team-name-${eventId}-${team.id}`); // Use team.id to find input
                     if (inputElement && inputElement.value !== team.name) {
                         team.name = inputElement.value;
                         changesMade = true;
@@ -846,10 +998,8 @@
                     
                     let scoreInputs1 = '', scoreInputs2 = '';
                     
-                    // Waterfall consolations are single game by default (isSF=false, isFinal=false in createMatchObject for them)
                     const isBo3 = (drawTypePrefix === 'MD' && (match.isSF || match.isFinal || match.isOverallChampionship)) || 
-                                  (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff);
-                                  // Add for WCD if its final is Bo3: || (drawTypePrefix === 'WCD' && match.isFinal)
+                                    (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff);
                     const numGamesToPlay = isBo3 ? 3 : 1;
 
                     match.score1 = match.score1 || [];
@@ -900,7 +1050,7 @@
             let draw;
             if (drawTypePrefix === 'MD') draw = event.mainDraw;
             else if (drawTypePrefix === 'CD') draw = event.consolationDraw;
-            else if (drawTypePrefix === 'WCD') draw = event.waterfallConsolationDraw; // Added
+            else if (drawTypePrefix === 'WCD') draw = event.waterfallConsolationDraw; 
             else return null; 
 
             if (!draw || !draw.rounds) return null;
@@ -935,8 +1085,7 @@
             if (!match) { console.error("Match not found:", matchId); return; }
 
             const isBo3 = (drawTypePrefix === 'MD' && (match.isSF || match.isFinal || match.isOverallChampionship)) || 
-                          (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff);
-                          // WCD matches are single game by default
+                            (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff);
             const numGamesToPlay = isBo3 ? 3 : 1;
             
             const collectedScores1 = [], collectedScores2 = [];
@@ -969,7 +1118,7 @@
                 else if (gameWinner === 2) team2MatchGamesWon++;
                 else {
                     if (match.score1[g] !== null || match.score2[g] !== null) { 
-                       allRequiredGamesValidlyScored = false;
+                        allRequiredGamesValidlyScored = false;
                     }
                 }
             }
@@ -1007,7 +1156,6 @@
                     } else if (drawTypePrefix === 'CD') { 
                         loserTeamObj.consolationLosses = (loserTeamObj.consolationLosses || 0) + 1;
                     }
-                    // No specific loss tracking for WCD on the team object for now
                 }
             }
             
@@ -1019,7 +1167,7 @@
             const event = tournamentData[eventId];
             if (!event) return;
             
-            let maxIterations = 10; // Increased slightly for deeper propagation if needed
+            let maxIterations = 10; 
             let iteration = 0;
             let changedInIteration;
 
@@ -1029,17 +1177,17 @@
                 const originalAssignments = JSON.stringify({
                     md: snapshot(event.mainDraw),
                     cd: snapshot(event.consolationDraw),
-                    wfcd: snapshot(event.waterfallConsolationDraw) // Added
+                    wfcd: snapshot(event.waterfallConsolationDraw) 
                 });
 
                 populateSpecificDraw(eventId, event.mainDraw, 'MD');
                 populateSpecificDraw(eventId, event.consolationDraw, 'CD');
-                populateSpecificDraw(eventId, event.waterfallConsolationDraw, 'WCD'); // Added
+                populateSpecificDraw(eventId, event.waterfallConsolationDraw, 'WCD'); 
 
                 const newAssignments = JSON.stringify({
                     md: snapshot(event.mainDraw),
                     cd: snapshot(event.consolationDraw),
-                    wfcd: snapshot(event.waterfallConsolationDraw) // Added
+                    wfcd: snapshot(event.waterfallConsolationDraw) 
                 });
                 
                 if (originalAssignments !== newAssignments) {
@@ -1058,7 +1206,7 @@
             drawData.rounds.forEach(round => {
                 round.forEach(match => {
                     if (match.isComplete && !match.isBye) return; 
-                                                
+                                            
                     if (!match.team1Id || match.team1Id === 'TBD') { 
                         const p1Id = getPlayerIdFromSource(eventId, match.team1Source); 
                         if (p1Id) match.team1Id = p1Id;
@@ -1086,10 +1234,9 @@
                         }
                     }
 
-                    // Feed losers to next specified bracket (CD or WCD)
                     if (match.isComplete && match.loserId && match.loserFeedsToNextBracketMatchId && match.nextBracketType) {
                         const loserIdToFeed = match.loserId; 
-                        const targetDrawTypePrefix = match.nextBracketType; // 'CD' or 'WCD'
+                        const targetDrawTypePrefix = match.nextBracketType; 
                         const targetMatchToFeed = findMatchById(eventId, targetDrawTypePrefix, match.loserFeedsToNextBracketMatchId);
 
                         if (targetMatchToFeed && !targetMatchToFeed.isComplete) { 
@@ -1148,7 +1295,6 @@
                 let sourceDrawType;
                 if (source.matchId.startsWith('M')) sourceDrawType = 'MD';
                 else if (source.matchId.startsWith('CD')) sourceDrawType = 'CD';
-                // WCD losers don't feed anywhere else currently, but if they did, add 'WCD' here
                 else return null;
                 
                 const sourceMatch = findMatchById(eventId, sourceDrawType, source.matchId);
