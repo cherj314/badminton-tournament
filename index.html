@@ -26,7 +26,6 @@
         #tournament-controls button#import-data { background-color: #17a2b8; } /* Teal */
         #tournament-controls button#import-data:hover { background-color: #138496; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
 
-
         .event-container { display: none; margin-top: 20px; padding: 20px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
         .event-container.active { display: block; }
         .event-container h2 { color: #4A90E2; margin-top:0; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px;}
@@ -88,6 +87,7 @@
         const NUM_SCHOOLS = 16;
         const TEAMS_PER_SCHOOL = 2;
         const TOTAL_TEAMS_PER_EVENT = NUM_SCHOOLS * TEAMS_PER_SCHOOL; // 32
+        const LOCAL_STORAGE_KEY = 'badmintonTournamentData_v3.2'; // Updated version
 
         let tournamentData = {};
         let currentEventId = 'BS'; // Default active event
@@ -100,18 +100,16 @@
             document.getElementById('reset-tournament').addEventListener('click', resetTournamentData);
             document.getElementById('save-all-teams').addEventListener('click', saveAllTeamNamesFromUI);
             document.getElementById('shuffle-current-event-teams').addEventListener('click', shuffleCurrentEventTeams);
-            // New listeners for import/export
             document.getElementById('export-data').addEventListener('click', exportTournamentData);
             document.getElementById('import-data').addEventListener('click', () => {
                 document.getElementById('import-file-input').click();
             });
             document.getElementById('import-file-input').addEventListener('change', handleTournamentDataUpload);
-
         }
 
         function saveData() {
             try {
-                localStorage.setItem('badmintonTournamentData_v3.1', JSON.stringify(tournamentData)); 
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(tournamentData)); 
             } catch (e) {
                 console.error("Error saving data to localStorage:", e);
                 alert("Could not save data. LocalStorage might be full or disabled.");
@@ -122,27 +120,28 @@
             const statusEl = document.getElementById('loading-status');
             if(statusEl) statusEl.style.display = 'block';
             try {
-                const storedData = localStorage.getItem('badmintonTournamentData_v3.1');
+                const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
                 if (storedData) {
                     tournamentData = JSON.parse(storedData);
-                    // Validate and potentially repair loaded data
                     Object.keys(EVENT_CODES).forEach(eventId => { 
                         if (!tournamentData[eventId]) {
                             tournamentData[eventId] = createEventObject(eventId);
                         } else { 
-                            // Ensure teams array is correct
                             if (!tournamentData[eventId].teams || !Array.isArray(tournamentData[eventId].teams) || tournamentData[eventId].teams.length !== TOTAL_TEAMS_PER_EVENT) {
                                 tournamentData[eventId].teams = createInitialTeams(eventId);
                             }
-                            // Ensure main draw structure
                             const mdRounds = tournamentData[eventId].mainDraw && tournamentData[eventId].mainDraw.rounds;
                             if (!mdRounds || !Array.isArray(mdRounds) || mdRounds.length < 6) { // 5 rounds + 1 overall final
                                 tournamentData[eventId].mainDraw = generateMainDrawStructure(eventId);
                             }
-                            // Ensure consolation draw structure
                             const cdRounds = tournamentData[eventId].consolationDraw && tournamentData[eventId].consolationDraw.rounds;
                             if (!cdRounds || !Array.isArray(cdRounds) || cdRounds.length < 8) { // 7 rounds + 1 third place
                                 tournamentData[eventId].consolationDraw = generateConsolationDrawStructure(eventId);
+                            }
+                            // Ensure waterfall consolation draw structure
+                            const wfcdRounds = tournamentData[eventId].waterfallConsolationDraw && tournamentData[eventId].waterfallConsolationDraw.rounds;
+                            if (!wfcdRounds || !Array.isArray(wfcdRounds) || wfcdRounds.length < 3) { // 2 rounds + 1 final for WCD
+                                tournamentData[eventId].waterfallConsolationDraw = generateWaterfallConsolationDrawStructure(eventId);
                             }
                         }
                     });
@@ -171,6 +170,7 @@
                 teams: createInitialTeams(eventId),
                 mainDraw: generateMainDrawStructure(eventId),
                 consolationDraw: generateConsolationDrawStructure(eventId),
+                waterfallConsolationDraw: generateWaterfallConsolationDrawStructure(eventId), // Added
                 setupComplete: false 
             };
         }
@@ -186,6 +186,7 @@
                         originalPlayerSlot: teams.length, 
                         mainDrawLosses: 0,
                         consolationLosses: 0
+                        // waterfallConsolationLosses: 0 // Not strictly needed for current logic
                     });
                 }
             }
@@ -194,7 +195,7 @@
 
         function resetTournamentData() {
             if (confirm("Are you sure you want to reset all tournament data? This cannot be undone.")) {
-                localStorage.removeItem('badmintonTournamentData_v3.1');
+                localStorage.removeItem(LOCAL_STORAGE_KEY);
                 initializeNewTournament();
                 renderCurrentEvent(); 
                 alert("Tournament data has been reset.");
@@ -204,7 +205,7 @@
         // --- Import/Export Feature ---
         function exportTournamentData() {
             try {
-                const jsonData = JSON.stringify(tournamentData, null, 2); // Pretty print JSON
+                const jsonData = JSON.stringify(tournamentData, null, 2);
                 const blob = new Blob([jsonData], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -224,13 +225,10 @@
 
         function handleTournamentDataUpload(event) {
             const file = event.target.files[0];
-            if (!file) {
-                return;
-            }
+            if (!file) return;
 
             if (!confirm("Importing data will overwrite any existing tournament data. Are you sure you want to proceed?")) {
-                event.target.value = null; // Reset file input
-                return;
+                event.target.value = null; return;
             }
 
             const reader = new FileReader();
@@ -242,134 +240,112 @@
 
                     Object.keys(EVENT_CODES).forEach(appEventId => {
                         if (importedRawData[appEventId]) {
-                            // Deep copy the event data
                             const eventData = JSON.parse(JSON.stringify(importedRawData[appEventId]));
 
-                            // Validate and repair teams
                             if (!eventData.teams || !Array.isArray(eventData.teams) || eventData.teams.length !== TOTAL_TEAMS_PER_EVENT) {
-                                console.warn(`Teams for event ${appEventId} are missing or malformed in imported data. Re-initializing teams for this event.`);
+                                console.warn(`Teams for event ${appEventId} are missing or malformed. Re-initializing.`);
                                 eventData.teams = createInitialTeams(appEventId);
                             } else {
-                                // Further check team objects structure if necessary
                                 eventData.teams.forEach((team, index) => {
                                     if (typeof team.id !== 'string' || typeof team.name !== 'string') {
-                                        console.warn(`Team ${index} in event ${appEventId} has malformed structure. Re-initializing all teams for safety.`);
-                                        eventData.teams = createInitialTeams(appEventId);
-                                        return; // Exit forEach for teams
+                                        console.warn(`Team ${index} in event ${appEventId} malformed. Re-initializing all teams.`);
+                                        eventData.teams = createInitialTeams(appEventId); return;
                                     }
                                     team.mainDrawLosses = team.mainDrawLosses || 0;
                                     team.consolationLosses = team.consolationLosses || 0;
                                 });
                             }
 
-                            // Validate and repair main draw
                             const mdRounds = eventData.mainDraw && eventData.mainDraw.rounds;
                             if (!mdRounds || !Array.isArray(mdRounds) || mdRounds.length < 6) {
-                                console.warn(`Main draw for event ${appEventId} is missing or malformed. Re-generating draw structure.`);
+                                console.warn(`Main draw for ${appEventId} malformed. Re-generating.`);
                                 eventData.mainDraw = generateMainDrawStructure(appEventId);
                             }
 
-                            // Validate and repair consolation draw
                             const cdRounds = eventData.consolationDraw && eventData.consolationDraw.rounds;
                             if (!cdRounds || !Array.isArray(cdRounds) || cdRounds.length < 8) {
-                                console.warn(`Consolation draw for event ${appEventId} is missing or malformed. Re-generating draw structure.`);
+                                console.warn(`Consolation draw for ${appEventId} malformed. Re-generating.`);
                                 eventData.consolationDraw = generateConsolationDrawStructure(appEventId);
                             }
                             
-                            // Ensure all matches have the necessary fields after potential regeneration or if directly from file
-                            [eventData.mainDraw, eventData.consolationDraw].forEach(draw => {
+                            const wfcdRounds = eventData.waterfallConsolationDraw && eventData.waterfallConsolationDraw.rounds;
+                            if (!wfcdRounds || !Array.isArray(wfcdRounds) || wfcdRounds.length < 3) {
+                                console.warn(`Waterfall Consolation draw for ${appEventId} missing or malformed. Re-generating.`);
+                                eventData.waterfallConsolationDraw = generateWaterfallConsolationDrawStructure(appEventId);
+                            }
+                            
+                            [eventData.mainDraw, eventData.consolationDraw, eventData.waterfallConsolationDraw].forEach(draw => {
                                 if (draw && draw.rounds) {
                                     draw.rounds.forEach(round => {
                                         round.forEach(match => {
-                                            // Ensure essential score arrays exist even if empty
                                             if (!Array.isArray(match.score1)) match.score1 = [];
                                             if (!Array.isArray(match.score2)) match.score2 = [];
-                                            // Ensure boolean flags have default values
                                             match.isComplete = !!match.isComplete;
                                             match.isBye = !!match.isBye;
                                         });
                                     });
                                 }
                             });
-
                             validatedData[appEventId] = eventData;
                         } else {
-                            console.warn(`Event ${appEventId} not found in imported data. Initializing as new.`);
+                            console.warn(`Event ${appEventId} not in imported data. Initializing as new.`);
                             validatedData[appEventId] = createEventObject(appEventId);
                         }
                     });
                     
-                    // Check if any valid event data was actually processed
                     if (Object.keys(validatedData).length === 0 && Object.keys(EVENT_CODES).length > 0) {
-                        alert("Import failed: The imported file does not seem to contain recognizable tournament data for the configured events.");
+                        alert("Import failed: No recognizable tournament data for configured events.");
                         importSuccessful = false;
                     }
 
                     if (importSuccessful) {
                         tournamentData = validatedData;
                         saveData();
-                        alert("Tournament data imported successfully! The page will now refresh with the new data.");
+                        alert("Tournament data imported successfully! The page will now refresh.");
                         
-                        // Full UI refresh
                         const statusEl = document.getElementById('loading-status');
                         if(statusEl) statusEl.style.display = 'block';
                         
-                        // Ensure event tabs and containers are rebuilt
                         setupEventTabs(); 
                         
-                        // Attempt to restore the current event tab, or default to the first one
                         let firstEventId = Object.keys(EVENT_CODES)[0];
-                        if (!EVENT_CODES[currentEventId] || !tournamentData[currentEventId]) { // if currentEventId is no longer valid
+                        if (!EVENT_CODES[currentEventId] || !tournamentData[currentEventId]) {
                             currentEventId = firstEventId;
                         }
-                        switchEventTab(currentEventId); // This will call renderCurrentEvent
+                        switchEventTab(currentEventId);
 
                         if(statusEl) statusEl.style.display = 'none';
                     }
-
                 } catch (e) {
                     console.error("Error processing imported JSON file:", e);
-                    alert("Failed to import data. The file might be corrupted or not in the correct JSON format. Please check the console for details.");
+                    alert("Failed to import data. File might be corrupted or not in correct JSON format.");
                 } finally {
-                    event.target.value = null; // Reset file input to allow re-upload of the same file
+                    event.target.value = null; 
                 }
             };
             reader.onerror = function() {
-                alert("Error reading the file.");
-                event.target.value = null;
+                alert("Error reading the file."); event.target.value = null;
             };
             reader.readAsText(file);
         }
 
-
         // --- Shuffle Feature ---
         function shuffleCurrentEventTeams() {
             const eventData = tournamentData[currentEventId];
-            if (!eventData) {
-                alert("No event selected or event data not found.");
-                return;
-            }
+            if (!eventData) { alert("No event selected or data not found."); return; }
 
             let actionTakenInEvent = false;
-            const drawsToCheck = [eventData.mainDraw, eventData.consolationDraw];
+            const drawsToCheck = [eventData.mainDraw, eventData.consolationDraw, eventData.waterfallConsolationDraw]; // Added WCD
 
             for (const draw of drawsToCheck) {
                 if (draw && draw.rounds) {
                     for (const round of draw.rounds) {
                         for (const match of round) {
-                            if (match.isComplete && !match.isBye) {
-                                actionTakenInEvent = true;
-                                break;
-                            }
-                            const hasEnteredScores = (m) => {
-                                const s1NotEmpty = m.score1 && m.score1.some(s => s !== null && s !== undefined && String(s).trim() !== '');
-                                const s2NotEmpty = m.score2 && m.score2.some(s => s !== null && s !== undefined && String(s).trim() !== '');
-                                return s1NotEmpty || s2NotEmpty;
-                            };
+                            if (match.isComplete && !match.isBye) { actionTakenInEvent = true; break; }
+                            const hasEnteredScores = (m) => (m.score1 && m.score1.some(s => s !== null && s !== undefined && String(s).trim() !== '')) || (m.score2 && m.score2.some(s => s !== null && s !== undefined && String(s).trim() !== ''));
                             if (!match.isComplete && hasEnteredScores(match) && match.team1Id && match.team2Id && match.team1Id !== 'BYE' && match.team2Id !== 'BYE') {
                                 actionTakenInEvent = true;
-                                alert("Cannot shuffle: Scores have been partially entered for some matches in this event. Please clear these scores or reset the event if you wish to shuffle.");
-                                return;
+                                alert("Cannot shuffle: Scores partially entered. Clear scores or reset event."); return;
                             }
                         }
                     }
@@ -377,35 +353,23 @@
                 }
             }
 
-            if (actionTakenInEvent) {
-                alert("Cannot shuffle entries: Matches have been played or scores partially entered in this event. Please reset the event data if you wish to start over and shuffle.");
-                return;
-            }
-
-            if (!confirm(`Are you sure you want to shuffle the entries for ${EVENT_CODES[currentEventId]}? This will reorder the initial seeding and clear any unplayed match pairings.`)) {
-                return;
-            }
+            if (actionTakenInEvent) { alert("Cannot shuffle: Matches played or scores entered. Reset event to shuffle."); return; }
+            if (!confirm(`Shuffle entries for ${EVENT_CODES[currentEventId]}? This reorders seeding and clears unplayed matches.`)) return;
 
             const teams = eventData.teams;
-            // Fisher-Yates Shuffle
             for (let i = teams.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
-                [teams[i], teams[j]] = [teams[j], teams[i]]; // Swap
+                [teams[i], teams[j]] = [teams[j], teams[i]];
             }
 
-            // Reset draw match assignments and scores for the shuffled event
             function resetDrawMatchAssignments(draw) {
                 if (draw && draw.rounds) {
                     draw.rounds.forEach(round => {
                         round.forEach(match => {
-                            match.team1Id = null;
-                            match.team2Id = null;
-                            match.score1 = [];
-                            match.score2 = [];
-                            match.winnerId = null;
-                            match.loserId = null;
-                            match.isComplete = false;
-                            match.isBye = false; 
+                            match.team1Id = null; match.team2Id = null;
+                            match.score1 = []; match.score2 = [];
+                            match.winnerId = null; match.loserId = null;
+                            match.isComplete = false; match.isBye = false; 
                         });
                     });
                 }
@@ -413,15 +377,17 @@
 
             resetDrawMatchAssignments(eventData.mainDraw);
             resetDrawMatchAssignments(eventData.consolationDraw);
+            resetDrawMatchAssignments(eventData.waterfallConsolationDraw); // Added WCD
 
             saveData();
-            renderCurrentEvent(); // This will re-populate and re-render draws
-            alert(`${EVENT_CODES[currentEventId]} entries have been shuffled. Draws have been updated based on the new order.`);
+            renderCurrentEvent();
+            alert(`${EVENT_CODES[currentEventId]} entries shuffled. Draws updated.`);
         }
 
-
         // --- Draw Generation Logic ---
-        function createMatchObject(id, round, matchInRound, team1Source = null, team2Source = null, isSF = false, isFinal = false, customLabel = "") {
+        function createMatchObject(id, round, matchInRound, team1Source = null, team2Source = null, 
+                                 isSF = false, isFinal = false, customLabel = "",
+                                 loserFeedsToNextBracketMatchId = null, loserFeedsToNextBracketSlotNumber = null, nextBracketType = null) {
             return {
                 id, round, matchInRound, customLabel,
                 team1Id: null, team2Id: null,
@@ -432,8 +398,9 @@
                 isSF, isFinal, 
                 isOverallChampionship: false,
                 isThirdPlacePlayoff: false, 
-                loserFeedsToConsolationMatchId: null, 
-                loserFeedsToSlotNumber: null, 
+                loserFeedsToNextBracketMatchId, 
+                loserFeedsToNextBracketSlotNumber,
+                nextBracketType
             };
         }
 
@@ -447,50 +414,45 @@
             let roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1, 
-                    { type: 'seed', slot: i * 2 }, { type: 'seed', slot: i * 2 + 1 }, false, false, `MD R1.${i+1}`);
-                match.loserFeedsToConsolationMatchId = `CD1.${Math.floor(i/2) + 1}`;
-                match.loserFeedsToSlotNumber = (i % 2 === 0) ? 1 : 2; 
+                    { type: 'seed', slot: i * 2 }, { type: 'seed', slot: i * 2 + 1 }, 
+                    false, false, `MD R1.${i+1}`,
+                    `CD1.${Math.floor(i/2) + 1}`, (i % 2 === 0) ? 1 : 2, 'CD');
                 roundMatches.push(match);
             }
-            rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; 
+            rounds.push(roundMatches); teamsInRound /= 2; roundNum++; 
 
             // R2: 8 matches
             roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
-                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` }, false, false, `MD R2.${i+1}`);
-                match.loserFeedsToConsolationMatchId = `CD2.${i + 1}`;
-                match.loserFeedsToSlotNumber = 2; 
+                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` }, 
+                    false, false, `MD R2.${i+1}`,
+                    `CD2.${i + 1}`, 2, 'CD'); // Loser feeds to slot 2 of CD2 match
                 roundMatches.push(match);
             }
-            rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; 
+            rounds.push(roundMatches); teamsInRound /= 2; roundNum++; 
 
             // R3 (QF): 4 matches
             roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
-                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` }, false, false, `MD QF.${i+1}`);
-                match.loserFeedsToConsolationMatchId = `CD4.${i + 1}`; 
-                match.loserFeedsToSlotNumber = 2; 
+                    { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` }, 
+                    false, false, `MD QF.${i+1}`,
+                    `CD4.${i + 1}`, 2, 'CD'); // Loser feeds to slot 2 of CD4 match
                 roundMatches.push(match);
             }
-            rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; 
+            rounds.push(roundMatches); teamsInRound /= 2; roundNum++; 
 
             // R4 (SF): 2 matches (Best of 3)
             roundMatches = [];
             for (let i = 0; i < teamsInRound / 2; i++) {
                 const match = createMatchObject(`M${roundNum}.${i+1}`, roundNum, i + 1,
                     { type: 'winner', matchId: `M${roundNum-1}.${i*2+1}` }, { type: 'winner', matchId: `M${roundNum-1}.${i*2+2}` },
-                    true, false, `MD SF.${i+1}`); 
-                match.loserFeedsToConsolationMatchId = `CD6.${i + 1}`; 
-                match.loserFeedsToSlotNumber = 2; 
+                    true, false, `MD SF.${i+1}`,
+                    `CD6.${i + 1}`, 2, 'CD'); // Loser feeds to slot 2 of CD6 match
                 roundMatches.push(match);
             }
-            rounds.push(roundMatches);
-            teamsInRound /= 2; roundNum++; 
+            rounds.push(roundMatches); teamsInRound /= 2; roundNum++; 
 
             // R5 (Final): 1 match (Best of 3)
             roundMatches = [];
@@ -498,15 +460,14 @@
                 { type: 'winner', matchId: `M${roundNum-1}.1` }, { type: 'winner', matchId: `M${roundNum-1}.2` },
                 false, true, `MD Final`); 
             roundMatches.push(mdFinal);
-            rounds.push(roundMatches);
-            roundNum++;
+            rounds.push(roundMatches); roundNum++;
 
             // R6 (Overall Championship): 1 match (Best of 3)
             roundMatches = [];
             const overallChampMatch = createMatchObject(`M${roundNum}.1`, roundNum, 1,
                 { type: 'winner', matchId: 'M5.1' }, // Winner of MD Final
                 { type: 'winner', matchId: 'CD7.1' }, // Winner of CD Final
-                false, true, `Overall Championship`); // isFinal for Bo3 logic
+                false, true, `Overall Championship`);
             overallChampMatch.isOverallChampionship = true;
             roundMatches.push(overallChampMatch);
             rounds.push(roundMatches);
@@ -518,13 +479,14 @@
             const rounds = [];
             let roundNum = 1; 
 
-            // CD-R1: 8 matches (for 16 L_M1)
+            // CD-R1: 8 matches (for 16 L_M1) - Losers feed to WCD R1
             let roundMatches = [];
             for (let i = 0; i < 8; i++) {
                 roundMatches.push(createMatchObject(`CD${roundNum}.${i+1}`, roundNum, i+1, 
                     { type: 'loser', matchId: `M1.${i*2+1}` }, 
                     { type: 'loser', matchId: `M1.${i*2+2}` }, 
-                    false, false, `CD R1.${i+1}`));
+                    false, false, `CD R1.${i+1}`,
+                    `WCD1.${Math.floor(i/2) + 1}`, (i % 2 === 0) ? 1 : 2, 'WCD')); // Feed to WCD
             }
             rounds.push(roundMatches); roundNum++;
 
@@ -600,6 +562,43 @@
             return { rounds };
         }
 
+        function generateWaterfallConsolationDrawStructure(eventId) {
+            const rounds = [];
+            let roundNum = 1;
+            const numFeeders = 8; // Losers from CD R1 (8 matches -> 8 losers)
+
+            // WCD-R1: 4 matches (for 8 L_CD1)
+            let roundMatches = [];
+            for (let i = 0; i < numFeeders / 2; i++) { // 4 matches
+                roundMatches.push(createMatchObject(`WCD${roundNum}.${i+1}`, roundNum, i+1,
+                    { type: 'loser', matchId: `CD1.${i*2+1}` }, // Loser of CD1.1, CD1.3, CD1.5, CD1.7
+                    { type: 'loser', matchId: `CD1.${i*2+2}` }, // Loser of CD1.2, CD1.4, CD1.6, CD1.8
+                    false, false, `WCD R1.${i+1}`));
+            }
+            rounds.push(roundMatches); roundNum++;
+
+            // WCD-R2 (SF): 2 matches
+            roundMatches = [];
+            for (let i = 0; i < (numFeeders / 2) / 2; i++) { // 2 matches
+                roundMatches.push(createMatchObject(`WCD${roundNum}.${i+1}`, roundNum, i+1,
+                    { type: 'winner', matchId: `WCD${roundNum-1}.${i*2+1}` },
+                    { type: 'winner', matchId: `WCD${roundNum-1}.${i*2+2}` },
+                    false, false, `WCD SF.${i+1}`));
+            }
+            rounds.push(roundMatches); roundNum++;
+
+            // WCD-R3 (Final): 1 match
+            roundMatches = [];
+            const wcdFinal = createMatchObject(`WCD${roundNum}.1`, roundNum, 1,
+                { type: 'winner', matchId: `WCD${roundNum-1}.1` },
+                { type: 'winner', matchId: `WCD${roundNum-1}.2` },
+                false, false, `WCD Final`); // Assuming single game, isFinal=false unless Bo3 needed
+            roundMatches.push(wcdFinal);
+            rounds.push(roundMatches);
+
+            return { rounds };
+        }
+
 
         // --- UI Rendering ---
         function setupEventTabs() {
@@ -636,6 +635,10 @@
                         <h3>Consolation Draw</h3>
                         <div id="consolation-draw-${eventId}" class="draw"></div>
                     </div>
+                    <div class="draw-section">
+                        <h3>Waterfall Consolations</h3>
+                        <div id="waterfall-consolation-draw-${eventId}" class="draw"></div>
+                    </div>
                 `;
                 tournamentContentEl.appendChild(eventDiv);
             });
@@ -657,7 +660,6 @@
             const eventData = tournamentData[currentEventId];
             if (!eventData) {
                 console.warn(`No data found for event ${currentEventId}. Cannot render.`);
-                 // Check if the container exists before trying to clear it
                 const eventContainer = document.getElementById(`event-${currentEventId}-container`);
                 if (eventContainer) {
                     eventContainer.innerHTML = `<h2>${EVENT_CODES[currentEventId] || currentEventId}</h2><p>Data for this event could not be loaded or is missing.</p>`;
@@ -669,6 +671,7 @@
             populateAllDrawsForEvent(currentEventId); 
             renderDraw(eventData.mainDraw, `main-draw-${currentEventId}`, currentEventId, 'MD');
             renderDraw(eventData.consolationDraw, `consolation-draw-${currentEventId}`, currentEventId, 'CD');
+            renderDraw(eventData.waterfallConsolationDraw, `waterfall-consolation-draw-${currentEventId}`, currentEventId, 'WCD'); // Added
         }
 
         function renderTeamSetupUI(eventId) {
@@ -741,11 +744,12 @@
                     
                     let scoreInputs1 = '', scoreInputs2 = '';
                     
+                    // Waterfall consolations are single game by default (isSF=false, isFinal=false in createMatchObject for them)
                     const isBo3 = (drawTypePrefix === 'MD' && (match.isSF || match.isFinal || match.isOverallChampionship)) || 
                                   (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff);
+                                  // Add for WCD if its final is Bo3: || (drawTypePrefix === 'WCD' && match.isFinal)
                     const numGamesToPlay = isBo3 ? 3 : 1;
 
-                    // Ensure scores arrays are initialized
                     match.score1 = match.score1 || [];
                     match.score2 = match.score2 || [];
 
@@ -756,7 +760,6 @@
                     
                     let matchLabel = match.customLabel || `${match.id}`;
                     if (isBo3 && match.customLabel && !match.customLabel.toLowerCase().includes("best of 3")) matchLabel += " (Best of 3)";
-
 
                     matchDiv.innerHTML = `
                         <div class="match-meta">${matchLabel}</div>
@@ -791,7 +794,13 @@
         function findMatchById(eventId, drawTypePrefix, matchId) {
             const event = tournamentData[eventId];
             if (!event) return null;
-            const draw = drawTypePrefix === 'MD' ? event.mainDraw : event.consolationDraw;
+            
+            let draw;
+            if (drawTypePrefix === 'MD') draw = event.mainDraw;
+            else if (drawTypePrefix === 'CD') draw = event.consolationDraw;
+            else if (drawTypePrefix === 'WCD') draw = event.waterfallConsolationDraw; // Added
+            else return null; 
+
             if (!draw || !draw.rounds) return null;
             for (const round of draw.rounds) {
                 const foundMatch = round.find(m => m.id === matchId);
@@ -809,7 +818,6 @@
             
             if (isNaN(p1) || isNaN(p2)) return null;
 
-
             if (p1 === 30 && p1 > p2) return 1; 
             if (p2 === 30 && p2 > p1) return 2; 
             if (p1 < 30 && p2 < 30) { 
@@ -825,12 +833,13 @@
             if (!match) { console.error("Match not found:", matchId); return; }
 
             const isBo3 = (drawTypePrefix === 'MD' && (match.isSF || match.isFinal || match.isOverallChampionship)) || 
-                          (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff) ; 
+                          (drawTypePrefix === 'CD' && match.isFinal && !match.isThirdPlacePlayoff);
+                          // WCD matches are single game by default
             const numGamesToPlay = isBo3 ? 3 : 1;
             
             const collectedScores1 = [], collectedScores2 = [];
             const matchDiv = document.getElementById(`match-${eventId}-${match.id}`);
-            if (!matchDiv) { console.error("Match div not found for scores:", `match-${eventId}-${match.id}`); return; }
+            if (!matchDiv) { console.error("Match div not found:", `match-${eventId}-${match.id}`); return; }
 
             for (let g = 0; g < numGamesToPlay; g++) {
                 const s1El = matchDiv.querySelector(`.team1-game${g+1}`);
@@ -849,50 +858,38 @@
             let team1MatchGamesWon = 0;
             let team2MatchGamesWon = 0;
             let allRequiredGamesValidlyScored = true;
-            let gamesPlayedCount = 0; // For Bo3, count how many games were actually played/scored
 
             for (let g = 0; g < numGamesToPlay; g++) {
-                if (isBo3 && (team1MatchGamesWon >= 2 || team2MatchGamesWon >= 2)) break; // Match already decided in Bo3
+                if (isBo3 && (team1MatchGamesWon >= 2 || team2MatchGamesWon >= 2)) break; 
 
                 const gameWinner = checkGameWinner(match.score1[g], match.score2[g]);
-                if (gameWinner === 1) {
-                    team1MatchGamesWon++;
-                    gamesPlayedCount++;
-                } else if (gameWinner === 2) {
-                    team2MatchGamesWon++;
-                    gamesPlayedCount++;
-                } else {
-                    // If a score is entered but it's not a valid win, it's an invalid game score
+                if (gameWinner === 1) team1MatchGamesWon++;
+                else if (gameWinner === 2) team2MatchGamesWon++;
+                else {
                     if (match.score1[g] !== null || match.score2[g] !== null) { 
                        allRequiredGamesValidlyScored = false;
                     }
-                    // For Bo3, if we haven't reached 2 wins for either player, and this game is unscored,
-                    // we might not have enough games yet, unless it's the first or second game of a Bo3.
-                    // The logic below will handle if the match itself is complete.
                 }
             }
             
-            // Determine match winner
             let determinedWinnerId = null;
             if (!isBo3) { // Single game
                 if (team1MatchGamesWon === 1) determinedWinnerId = match.team1Id;
                 else if (team2MatchGamesWon === 1) determinedWinnerId = match.team2Id;
-                else { allRequiredGamesValidlyScored = false; } // If no one won the single game
+                else { allRequiredGamesValidlyScored = false; } 
             } else { // Best of 3
                 if (team1MatchGamesWon >= 2) determinedWinnerId = match.team1Id;
                 else if (team2MatchGamesWon >= 2) determinedWinnerId = match.team2Id;
-                else { allRequiredGamesValidlyScored = false; } // Not enough games won for a Bo3
+                else { allRequiredGamesValidlyScored = false; } 
             }
             
             if (!allRequiredGamesValidlyScored) {
-                alert(`Match scores for ${match.id} are incomplete or invalid. For single games, one player must win (e.g. 21-10, or 30-29). For Best of 3, two games must be won with valid scores. Please check all entered scores.`);
+                alert(`Match scores for ${match.id} are incomplete or invalid. Check all scores.`);
                 match.winnerId = null; 
                 match.loserId = null;
                 match.isComplete = false;
-                // Do not save and re-render, let user correct.
-                // We've already updated match.score1 and match.score2 in memory, so if they save again it will be with current inputs.
-                saveData(); // Save the partially entered scores
-                renderCurrentEvent(); // Re-render to show current state of inputs
+                saveData(); 
+                renderCurrentEvent(); 
                 return;
             }
             
@@ -905,9 +902,10 @@
                 if (loserTeamObj) { 
                     if (drawTypePrefix === 'MD') {
                         loserTeamObj.mainDrawLosses = (loserTeamObj.mainDrawLosses || 0) + 1;
-                    } else { 
+                    } else if (drawTypePrefix === 'CD') { 
                         loserTeamObj.consolationLosses = (loserTeamObj.consolationLosses || 0) + 1;
                     }
+                    // No specific loss tracking for WCD on the team object for now
                 }
             }
             
@@ -919,25 +917,27 @@
             const event = tournamentData[eventId];
             if (!event) return;
             
-            let maxIterations = 7; // Max rounds in either draw is around this. Should be enough to propagate.
+            let maxIterations = 10; // Increased slightly for deeper propagation if needed
             let iteration = 0;
             let changedInIteration;
 
             do {
                 changedInIteration = false;
-                // Create a snapshot of team assignments to detect changes
                 const snapshot = (draw) => draw && draw.rounds ? draw.rounds.map(r => r.map(m => `${m.id}:${m.team1Id}-${m.team2Id}:${m.isComplete}`)) : [];
                 const originalAssignments = JSON.stringify({
                     md: snapshot(event.mainDraw),
-                    cd: snapshot(event.consolationDraw)
+                    cd: snapshot(event.consolationDraw),
+                    wfcd: snapshot(event.waterfallConsolationDraw) // Added
                 });
 
                 populateSpecificDraw(eventId, event.mainDraw, 'MD');
                 populateSpecificDraw(eventId, event.consolationDraw, 'CD');
+                populateSpecificDraw(eventId, event.waterfallConsolationDraw, 'WCD'); // Added
 
                 const newAssignments = JSON.stringify({
                     md: snapshot(event.mainDraw),
-                    cd: snapshot(event.consolationDraw)
+                    cd: snapshot(event.consolationDraw),
+                    wfcd: snapshot(event.waterfallConsolationDraw) // Added
                 });
                 
                 if (originalAssignments !== newAssignments) {
@@ -946,31 +946,26 @@
                 iteration++;
             } while (changedInIteration && iteration < maxIterations);
              if (iteration === maxIterations && changedInIteration) {
-                console.warn("Max population iterations reached, but changes were still happening. Draw might not be fully stable. Check for circular dependencies or logic errors in player feeding.");
+                console.warn("Max population iterations reached. Draw might not be fully stable.");
             }
         }
 
-
         function populateSpecificDraw(eventId, drawData, drawTypePrefix) {
-            const event = tournamentData[eventId];
             if (!drawData || !drawData.rounds) return;
 
             drawData.rounds.forEach(round => {
                 round.forEach(match => {
-                    if (match.isComplete && !match.isBye) return; // Already completed, don't touch
-                                                                
-                    // Populate team1Id
+                    if (match.isComplete && !match.isBye) return; 
+                                                    
                     if (!match.team1Id || match.team1Id === 'TBD') { 
                         const p1Id = getPlayerIdFromSource(eventId, match.team1Source); 
                         if (p1Id) match.team1Id = p1Id;
                     }
-                    // Populate team2Id
                     if (!match.team2Id || match.team2Id === 'TBD') {
                         const p2Id = getPlayerIdFromSource(eventId, match.team2Source); 
                         if (p2Id) match.team2Id = p2Id;
                     }
 
-                    // Auto-complete BYEs if not already marked as complete by a bye
                     if (!match.isComplete) { 
                         let newByeWinner = null;
                         if (match.team1Id === 'BYE' && match.team2Id && match.team2Id !== 'BYE' && match.team2Id !== 'TBD') {
@@ -978,48 +973,45 @@
                         } else if (match.team2Id === 'BYE' && match.team1Id && match.team1Id !== 'BYE' && match.team1Id !== 'TBD') {
                             newByeWinner = match.team1Id;
                         } else if (match.team1Id === 'BYE' && match.team2Id === 'BYE') {
-                            // This case ideally shouldn't happen if sources are TBD until one is resolved.
-                            // If it does, winner is 'BYE' but it won't advance meaningfully.
                             newByeWinner = 'BYE'; 
                         }
                         
                         if (newByeWinner) {
                              match.winnerId = newByeWinner;
                              match.loserId = (newByeWinner === match.team1Id) ? match.team2Id : match.team1Id; 
-                             match.isComplete = true;
-                             match.isBye = true;
+                             match.isComplete = true; match.isBye = true;
                              match.score1 = []; match.score2 = []; 
                         }
                     }
 
-                    // Feed losers from MD to CD
-                    if (drawTypePrefix === 'MD' && match.isComplete && match.loserId && match.loserFeedsToConsolationMatchId) {
+                    // Feed losers to next specified bracket (CD or WCD)
+                    if (match.isComplete && match.loserId && match.loserFeedsToNextBracketMatchId && match.nextBracketType) {
                         const loserIdToFeed = match.loserId; 
-                        const cdMatchToFeed = findMatchById(eventId, 'CD', match.loserFeedsToConsolationMatchId);
+                        const targetDrawTypePrefix = match.nextBracketType; // 'CD' or 'WCD'
+                        const targetMatchToFeed = findMatchById(eventId, targetDrawTypePrefix, match.loserFeedsToNextBracketMatchId);
 
-                        if (cdMatchToFeed && !cdMatchToFeed.isComplete) { 
+                        if (targetMatchToFeed && !targetMatchToFeed.isComplete) { 
                             let slotFilledThisIteration = false;
-                            if (match.loserFeedsToSlotNumber === 1 && (!cdMatchToFeed.team1Id || cdMatchToFeed.team1Id === 'TBD')) {
-                                cdMatchToFeed.team1Id = loserIdToFeed;
+                            if (match.loserFeedsToNextBracketSlotNumber === 1 && (!targetMatchToFeed.team1Id || targetMatchToFeed.team1Id === 'TBD')) {
+                                targetMatchToFeed.team1Id = loserIdToFeed;
                                 slotFilledThisIteration = true;
-                            } else if (match.loserFeedsToSlotNumber === 2 && (!cdMatchToFeed.team2Id || cdMatchToFeed.team2Id === 'TBD')) {
-                                cdMatchToFeed.team2Id = loserIdToFeed;
+                            } else if (match.loserFeedsToNextBracketSlotNumber === 2 && (!targetMatchToFeed.team2Id || targetMatchToFeed.team2Id === 'TBD')) {
+                                targetMatchToFeed.team2Id = loserIdToFeed;
                                 slotFilledThisIteration = true;
                             }
 
-                            // If a slot was filled, check again for BYE completion in the CD match
-                            if (slotFilledThisIteration && !cdMatchToFeed.isComplete) {
-                                let cdByeWinner = null;
-                                if (cdMatchToFeed.team1Id === 'BYE' && cdMatchToFeed.team2Id && cdMatchToFeed.team2Id !== 'BYE' && cdMatchToFeed.team2Id !== 'TBD') {
-                                    cdByeWinner = cdMatchToFeed.team2Id;
-                                } else if (cdMatchToFeed.team2Id === 'BYE' && cdMatchToFeed.team1Id && cdMatchToFeed.team1Id !== 'BYE' && cdMatchToFeed.team1Id !== 'TBD') {
-                                    cdByeWinner = cdMatchToFeed.team1Id;
+                            if (slotFilledThisIteration && !targetMatchToFeed.isComplete) {
+                                let targetByeWinner = null;
+                                if (targetMatchToFeed.team1Id === 'BYE' && targetMatchToFeed.team2Id && targetMatchToFeed.team2Id !== 'BYE' && targetMatchToFeed.team2Id !== 'TBD') {
+                                    targetByeWinner = targetMatchToFeed.team2Id;
+                                } else if (targetMatchToFeed.team2Id === 'BYE' && targetMatchToFeed.team1Id && targetMatchToFeed.team1Id !== 'BYE' && targetMatchToFeed.team1Id !== 'TBD') {
+                                    targetByeWinner = targetMatchToFeed.team1Id;
                                 }
-                                if (cdByeWinner) {
-                                    cdMatchToFeed.winnerId = cdByeWinner;
-                                    cdMatchToFeed.loserId = (cdByeWinner === cdMatchToFeed.team1Id) ? cdMatchToFeed.team2Id : cdMatchToFeed.team1Id;
-                                    cdMatchToFeed.isComplete = true; cdMatchToFeed.isBye = true;
-                                    cdMatchToFeed.score1 = []; cdMatchToFeed.score2 = [];
+                                if (targetByeWinner) {
+                                    targetMatchToFeed.winnerId = targetByeWinner;
+                                    targetMatchToFeed.loserId = (targetByeWinner === targetMatchToFeed.team1Id) ? targetMatchToFeed.team2Id : targetMatchToFeed.team1Id;
+                                    targetMatchToFeed.isComplete = true; targetMatchToFeed.isBye = true;
+                                    targetMatchToFeed.score1 = []; targetMatchToFeed.score2 = [];
                                 }
                             }
                         }
@@ -1031,39 +1023,38 @@
         function getPlayerIdFromSource(eventId, source) { 
             if (!source) return null;
             const event = tournamentData[eventId];
-            if (!event) return null; // Event data must exist
+            if (!event) return null;
 
             if (source.type === 'seed') {
-                // Ensure event.teams is defined and source.slot is a valid index
                 if (event.teams && event.teams[source.slot]) {
                     return event.teams[source.slot].id;
                 }
-                // If slot is out of bounds (e.g. fewer than 32 teams if byes are possible from start)
-                // or if byes are explicitly seeded, this could return 'BYE'.
-                // For this system, we assume 32 distinct entries unless modified for byes.
-                // Defaulting to 'BYE' if team not found at slot is risky without explicit BYE seeding.
-                // Let's assume for now all slots map to a team or are handled by upstream logic.
-                // If team truly doesn't exist, then TBD/null is better than assuming BYE here.
-                return event.teams[source.slot] ? event.teams[source.slot].id : null; // or 'TBD'
-
+                return event.teams[source.slot] ? event.teams[source.slot].id : null;
             } else if (source.type === 'winner') {
-                const sourceDrawType = source.matchId.startsWith('M') ? 'MD' : 'CD';
+                let sourceDrawType;
+                if (source.matchId.startsWith('M')) sourceDrawType = 'MD';
+                else if (source.matchId.startsWith('CD')) sourceDrawType = 'CD';
+                else if (source.matchId.startsWith('WCD')) sourceDrawType = 'WCD';
+                else return null;
+
                 const sourceMatch = findMatchById(eventId, sourceDrawType, source.matchId);
                 if (sourceMatch && sourceMatch.isComplete) {
                     return sourceMatch.winnerId; 
                 }
                 return null; 
             } else if (source.type === 'loser') {
-                const sourceDrawType = source.matchId.startsWith('M') ? 'MD' : 'CD';
+                let sourceDrawType;
+                if (source.matchId.startsWith('M')) sourceDrawType = 'MD';
+                else if (source.matchId.startsWith('CD')) sourceDrawType = 'CD';
+                // WCD losers don't feed anywhere else currently, but if they did, add 'WCD' here
+                else return null;
+                
                 const sourceMatch = findMatchById(eventId, sourceDrawType, source.matchId);
                 
                 if (sourceMatch && sourceMatch.isComplete) {
-                    // If the source match itself was a bye, the "loser" is effectively the BYE placeholder
-                    // if the other team was real and advanced.
                     if (sourceMatch.isBye) {
                         if (sourceMatch.team1Id === 'BYE' && sourceMatch.winnerId === sourceMatch.team2Id) return 'BYE';
                         if (sourceMatch.team2Id === 'BYE' && sourceMatch.winnerId === sourceMatch.team1Id) return 'BYE';
-                         // If winner is BYE (e.g. BYE vs BYE), loser is also BYE
                         if (sourceMatch.winnerId === 'BYE') return 'BYE';
                     }
                     return sourceMatch.loserId; 
@@ -1075,7 +1066,6 @@
 
         // --- Entry Point ---
         document.addEventListener('DOMContentLoaded', initApp);
-
     </script>
 </body>
 </html>
